@@ -1,0 +1,16 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+body { font-family: 'Inter', system-ui, sans-serif; background-color: #F1F5F2; }
+
+@layer components {
+  .logo-white { filter: brightness(0) invert(1); }
+  .logo-black { filter: brightness(0); }
+  .card { @apply bg-white rounded-2xl shadow-sm border border-gray-100; }
+  .btn-primary { @apply bg-kapori-600 text-white rounded-lg px-4 py-2 font-medium hover:bg-kapori-700 transition-colors; }
+  .btn-ghost { @apply border border-gray-200 text-gray-600 rounded-lg px-4 py-2 font-medium hover:bg-gray-50 transition-colors; }
+  .badge { @apply rounded-full px-2.5 py-0.5 text-xs font-semibold; }
+}

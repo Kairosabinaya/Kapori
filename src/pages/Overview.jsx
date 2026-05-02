@@ -5,7 +5,7 @@ import {
   BrainCircuit, Droplets, Thermometer, TestTube,
   Zap, Leaf, ShieldCheck, CheckCircle, X
 } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { notify } from '../lib/notify'
 import MetricCard from '../components/ui/MetricCard'
 import Modal from '../components/ui/Modal'
 import FieldPerformanceChart from '../components/charts/FieldPerformanceChart'
@@ -33,20 +33,13 @@ export default function Overview() {
 
   const handleApply = () => {
     setInsightApplied(true)
-    toast('✓ Aksi irigasi berhasil diterapkan pada Lahan A', {
-      style: {
-        background: '#fff',
-        color: '#1B4332',
-        borderLeft: '4px solid #2D6A4F',
-      },
-    })
+    notify.success('Aksi irigasi diterapkan pada Lahan A')
   }
 
   const handleDismiss = () => {
     setInsightDismissed(true)
   }
 
-  // Show insight only if relevant farm is selected
   const showInsight = (selectedFarm === 'Semua Farm' || selectedFarm === 'Farm Utama')
 
   return (
@@ -56,7 +49,7 @@ export default function Overview() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
-      className="space-y-6"
+      className="space-y-4 md:space-y-6"
     >
       {/* AI Insight Card */}
       <AnimatePresence>
@@ -64,36 +57,34 @@ export default function Overview() {
           <motion.div
             exit={{ opacity: 0, height: 0, marginBottom: 0 }}
             transition={{ duration: 0.3 }}
-            className={`rounded-2xl p-5 border-2 transition-all duration-300 ${
+            className={`rounded-2xl p-4 md:p-5 border-2 transition-all duration-300 ${
               insightApplied
                 ? 'border-kapori-300 bg-kapori-50'
                 : 'border-kapori-500 animate-pulse-slow bg-white'
             }`}
           >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-kapori-100 rounded-xl">
+            <div className="flex items-start gap-3 mb-4 flex-wrap">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 bg-kapori-100 rounded-xl shrink-0">
                   <BrainCircuit className="w-5 h-5 text-kapori-600" />
                 </div>
-                <div>
-                  <span className="font-bold text-gray-800">AI Insight Terdeteksi</span>
-                </div>
-                {insightApplied ? (
-                  <span className="badge bg-green-100 text-green-700">Aksi Diterapkan ✓</span>
-                ) : (
-                  <span className="badge bg-red-100 text-red-700">Prioritas Tinggi</span>
-                )}
+                <span className="font-bold text-gray-800">AI Insight terdeteksi</span>
               </div>
+              {insightApplied ? (
+                <span className="badge bg-green-100 text-green-700">Aksi diterapkan</span>
+              ) : (
+                <span className="badge bg-red-100 text-red-700">Prioritas tinggi</span>
+              )}
             </div>
 
             <p className="text-gray-700 font-medium mb-4">
               Lahan A akan mengalami stres air dalam 5 jam.
             </p>
 
-            <div className="grid grid-cols-4 gap-4 mb-5">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-5">
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-gray-400 mb-1">Sebab</p>
-                <p className="text-sm font-semibold text-gray-700">Suhu tinggi + tanpa hujan</p>
+                <p className="text-sm font-semibold text-gray-700">Suhu tinggi tanpa hujan</p>
               </div>
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-gray-400 mb-1">Kepercayaan</p>
@@ -104,30 +95,30 @@ export default function Overview() {
                 <p className="text-sm font-semibold text-gray-700">Irigasi segera</p>
               </div>
               <div className="bg-gray-50 rounded-xl p-3">
-                <p className="text-xs text-gray-400 mb-1">Est. Dampak</p>
+                <p className="text-xs text-gray-400 mb-1">Est. dampak</p>
                 <p className="text-sm font-semibold text-gray-700">+15% kelembaban</p>
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-2 md:gap-3">
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={handleApply}
                 disabled={insightApplied}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-colors ${
                   insightApplied
                     ? 'bg-kapori-200 text-kapori-700 cursor-not-allowed'
                     : 'bg-kapori-600 text-white hover:bg-kapori-700'
                 }`}
               >
                 <CheckCircle className="w-4 h-4" />
-                {insightApplied ? 'Diterapkan' : 'Terapkan Aksi'}
+                {insightApplied ? 'Diterapkan' : 'Terapkan aksi'}
               </motion.button>
               {!insightApplied && (
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={handleDismiss}
-                  className="btn-ghost flex items-center gap-2 text-sm"
+                  className="btn-ghost flex items-center gap-2 text-sm py-2.5"
                 >
                   <X className="w-4 h-4" />
                   Abaikan
@@ -139,7 +130,7 @@ export default function Overview() {
       </AnimatePresence>
 
       {/* Metric Cards Grid */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
         {metrics.map((m, i) => (
           <MetricCard
             key={`${selectedFarm}-${selectedTime}-${i}`}
@@ -167,7 +158,7 @@ export default function Overview() {
         {selectedMetric && (
           <div className="space-y-4">
             <div className="text-center py-4">
-              <p className="text-5xl font-bold text-gray-800">
+              <p className="text-4xl md:text-5xl font-bold text-gray-800">
                 {selectedMetric.value}
                 <span className="text-lg text-gray-400 ml-1">{selectedMetric.unit}</span>
               </p>
@@ -178,11 +169,11 @@ export default function Overview() {
             <div className="space-y-2">
               {filteredLahans.map(l => (
                 <div key={l.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: l.warna }} />
-                    <span className="text-sm font-medium text-gray-700">{l.nama}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: l.warna }} />
+                    <span className="text-sm font-medium text-gray-700 truncate">{l.nama}</span>
                   </div>
-                  <span className="text-sm font-bold text-gray-800">
+                  <span className="text-sm font-bold text-gray-800 shrink-0 ml-2">
                     {selectedMetric.label === 'Kelembaban Tanah' ? l.kelembaban :
                      selectedMetric.label === 'Suhu' ? l.suhu :
                      selectedMetric.label === 'pH Tanah' ? l.ph :

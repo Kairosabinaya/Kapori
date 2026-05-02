@@ -5,10 +5,13 @@ import clsx from 'clsx'
 import Sidebar from './Sidebar'
 import Header from './Header'
 
+const fullBleedRoutes = ['/lahan']
+
 export default function Layout({ acknowledgedAlerts, filters }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
+  const isFullBleed = fullBleedRoutes.includes(location.pathname)
 
   useEffect(() => {
     setMobileOpen(false)
@@ -46,7 +49,12 @@ export default function Layout({ acknowledgedAlerts, filters }) {
           filters={filters}
           onMobileMenuToggle={() => setMobileOpen(true)}
         />
-        <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+        <main
+          className={clsx(
+            'flex-1 relative',
+            isFullBleed ? 'overflow-hidden' : 'p-4 md:p-6 overflow-y-auto'
+          )}
+        >
           <Outlet context={{ filters }} />
         </main>
       </div>

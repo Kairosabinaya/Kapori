@@ -122,99 +122,98 @@ export default function Lahan() {
 
   return (
     <motion.div
-      key={selectedFarm}
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
-      className="relative"
+      className="absolute inset-0 overflow-hidden"
     >
-      <div className="card overflow-hidden relative">
-        <div className="relative h-[480px] md:h-[600px]">
-          <MapContainer
-            center={FARM_CENTER}
-            zoom={17}
-            minZoom={16}
-            maxZoom={19}
-            maxBounds={panBounds}
-            maxBoundsViscosity={1.0}
-            zoomControl={false}
-            attributionControl={true}
-            scrollWheelZoom={!isMobile}
-            doubleClickZoom={true}
-            dragging={true}
-            style={{ width: '100%', height: '100%' }}
-          >
-            <TileLayer
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              attribution='Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noreferrer">Esri</a>, Maxar, Earthstar Geographics'
-              maxZoom={19}
-            />
-            <ZoomControl position="topright" />
+      <MapContainer
+        center={FARM_CENTER}
+        zoom={17}
+        minZoom={16}
+        maxZoom={19}
+        maxBounds={panBounds}
+        maxBoundsViscosity={1.0}
+        zoomControl={false}
+        attributionControl={true}
+        scrollWheelZoom={!isMobile}
+        doubleClickZoom={true}
+        dragging={true}
+        style={{ width: '100%', height: '100%' }}
+      >
+        <TileLayer
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          attribution='Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noreferrer">Esri</a>, Maxar, Earthstar Geographics'
+          maxZoom={19}
+        />
+        <ZoomControl position="topright" />
 
-            {lahanPolygons.map(poly => {
-              const isVisible = visibleLahanNames.includes(poly.lahan)
-              const isSelected = selectedLahan === poly.id
-              return (
-                <Polygon
-                  key={poly.id}
-                  positions={poly.coords}
-                  pathOptions={{
-                    color: poly.color,
+        {lahanPolygons.map(poly => {
+          const isVisible = visibleLahanNames.includes(poly.lahan)
+          const isSelected = selectedLahan === poly.id
+          return (
+            <Polygon
+              key={poly.id}
+              positions={poly.coords}
+              pathOptions={{
+                color: poly.color,
+                weight: isSelected ? 4 : 2.5,
+                fillColor: poly.color,
+                fillOpacity: isVisible ? (isSelected ? 0.4 : 0.22) : 0.05,
+                opacity: isVisible ? 1 : 0.25,
+                dashArray: isVisible ? null : '4 4',
+              }}
+              eventHandlers={{
+                click: () => isVisible && setSelectedLahan(poly.id),
+                mouseover: (e) => isVisible && e.target.setStyle({ fillOpacity: 0.4, weight: 4 }),
+                mouseout: (e) => {
+                  if (!isVisible) return
+                  e.target.setStyle({
+                    fillOpacity: isSelected ? 0.4 : 0.22,
                     weight: isSelected ? 4 : 2.5,
-                    fillColor: poly.color,
-                    fillOpacity: isVisible ? (isSelected ? 0.4 : 0.22) : 0.05,
-                    opacity: isVisible ? 1 : 0.25,
-                    dashArray: isVisible ? null : '4 4',
-                  }}
-                  eventHandlers={{
-                    click: () => isVisible && setSelectedLahan(poly.id),
-                    mouseover: (e) => isVisible && e.target.setStyle({ fillOpacity: 0.4, weight: 4 }),
-                    mouseout: (e) => {
-                      if (!isVisible) return
-                      e.target.setStyle({
-                        fillOpacity: isSelected ? 0.4 : 0.22,
-                        weight: isSelected ? 4 : 2.5,
-                      })
-                    },
-                  }}
+                  })
+                },
+              }}
+            >
+              {isVisible && (
+                <Tooltip
+                  permanent
+                  direction="center"
+                  className="lahan-label"
+                  opacity={1}
                 >
-                  {isVisible && (
-                    <Tooltip
-                      permanent
-                      direction="center"
-                      className="lahan-label"
-                      opacity={1}
-                    >
-                      Lahan {poly.id}
-                    </Tooltip>
-                  )}
-                </Polygon>
-              )
-            })}
-          </MapContainer>
+                  Lahan {poly.id}
+                </Tooltip>
+              )}
+            </Polygon>
+          )
+        })}
+      </MapContainer>
 
-          {/* Compass + scale overlay (decorative) */}
-          <div className="absolute top-3 left-3 z-[400] bg-white/90 backdrop-blur-sm rounded-lg px-2.5 py-2 shadow-md flex items-center gap-1.5 pointer-events-none">
-            <Compass className="w-4 h-4 text-kapori-600" />
-            <span className="text-xs font-semibold text-gray-700">Lembang, Bandung Barat</span>
-          </div>
-
-          {/* Legend */}
-          <div className="absolute bottom-3 left-3 z-[400] bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 shadow-md">
-            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Status Lahan</p>
-            <div className="space-y-0.5">
-              {lahanPolygons.map(p => (
-                <div key={p.id} className="flex items-center gap-2 text-xs">
-                  <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: p.color }} />
-                  <span className="text-gray-700">Lahan {p.id}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* Compass / location label */}
+      <div className="absolute top-3 left-3 z-[400] bg-white/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-md flex items-center gap-2 pointer-events-none">
+        <Compass className="w-4 h-4 text-kapori-600" />
+        <div className="leading-tight">
+          <p className="text-xs font-semibold text-gray-800">Lembang, Bandung Barat</p>
+          <p className="text-[10px] text-gray-400">Polygon lahan: simulasi demo</p>
         </div>
+      </div>
 
-        {/* Detail Panel + mobile backdrop */}
+      {/* Legend */}
+      <div className="absolute bottom-6 left-3 z-[400] bg-white/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-md">
+        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Status Lahan</p>
+        <div className="space-y-0.5">
+          {lahanPolygons.map(p => (
+            <div key={p.id} className="flex items-center gap-2 text-xs">
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: p.color }} />
+              <span className="text-gray-700">Lahan {p.id}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Detail Panel + mobile backdrop */}
         <AnimatePresence>
           {lahanData && (
             <>
@@ -337,11 +336,6 @@ export default function Lahan() {
             </>
           )}
         </AnimatePresence>
-      </div>
-
-      <p className="text-xs text-gray-400 mt-2 px-1">
-        Tampilan satellite area Lembang, Jawa Barat. Polygon lahan adalah simulasi untuk demo.
-      </p>
     </motion.div>
   )
 }

@@ -56,8 +56,8 @@ export const sensors = [
     id: 'SU-02', nama: 'Sensor Utama 02', lahan: 'Lahan Utama', tipe: 'sensor',
     position: [-7.5895, 111.9135],
     kelembaban: 33.1, suhu: 32.8, ph: 5.8, ec: 1.05, npk: 71, airHumidity: 49, sistemHealth: 97,
-    sinyal: 88, baterai: 22, solarCharge: 4.1, lastReport: '3 menit lalu',
-    status: 'peringatan', error: 'Baterai rendah, perlu pengisian solar.',
+    sinyal: 88, baterai: 38, solarCharge: 3.2, lastReport: '3 menit lalu',
+    status: 'peringatan', error: 'Solar panel underperforming (3.2W, normal 12W). Cek apakah tertutup daun atau debu.',
   },
   {
     id: 'SU-03', nama: 'Sensor Utama 03', lahan: 'Lahan Utama', tipe: 'sensor',
@@ -297,18 +297,25 @@ function deviceAlerts() {
         lahan: d.lahan === 'Sistem' ? 'Sistem' : d.lahan,
         waktu: '4 jam lalu', sumberId: d.id, kategori: 'perangkat',
       })
-    } else if (d.tipe === 'sensor' && d.baterai > 0 && d.baterai < 25) {
+      continue
+    }
+    // Solar panel underperforming — root cause for sensors that should be
+    // self-charging during daylight. Threshold ~5W indicates panel issue
+    // (debu, daun menutup, atau modul rusak) before battery depletes critical.
+    if (d.tipe === 'sensor' && d.solarCharge != null && d.solarCharge < 5 && d.solarCharge > 0) {
       out.push({
         id: id++, tipe: 'warning',
-        judul: `Baterai rendah: ${d.nama}`,
-        pesan: `Baterai ${d.baterai}% pada ${d.nama}. Solar charge ${d.solarCharge}W. Segera cek panel surya atau ganti baterai.`,
-        lahan: d.lahan, waktu: '15 menit lalu', sumberId: d.id, kategori: 'perangkat',
+        judul: `Panel surya tidak optimal: ${d.nama}`,
+        pesan: `Solar charge ${d.solarCharge}W (normal ≥10W). Baterai mulai turun ke ${d.baterai}%. Bersihkan panel dari daun/debu atau cek modul charger.`,
+        lahan: d.lahan, waktu: '30 menit lalu', sumberId: d.id, kategori: 'perangkat',
       })
-    } else if (d.tipe === 'sensor' && d.sinyal > 0 && d.sinyal < 50) {
+      continue
+    }
+    if (d.tipe === 'sensor' && d.sinyal > 0 && d.sinyal < 50) {
       out.push({
         id: id++, tipe: 'warning',
         judul: `Sinyal lemah: ${d.nama}`,
-        pesan: `Kekuatan sinyal ${d.sinyal}% di bawah ambang minimum 50%. Data mungkin tertunda.`,
+        pesan: `Kekuatan sinyal ${d.sinyal}% di bawah ambang minimum 50%. Data mungkin tertunda — cek antena atau jarak ke gateway.`,
         lahan: d.lahan, waktu: '1 jam lalu', sumberId: d.id, kategori: 'perangkat',
       })
     }

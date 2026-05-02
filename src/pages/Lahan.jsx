@@ -1,34 +1,49 @@
 import { useState, useMemo } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Droplets, Thermometer, TestTube, Zap, Leaf, ShieldCheck, Navigation, Download, RefreshCw } from 'lucide-react'
+import { MapContainer, TileLayer, Polygon, Tooltip, ZoomControl } from 'react-leaflet'
+import { X, Droplets, Thermometer, TestTube, Zap, Leaf, ShieldCheck, Navigation, Download, RefreshCw, Compass } from 'lucide-react'
 import clsx from 'clsx'
 import { notify } from '../lib/notify'
 import { useMediaQuery } from '../lib/useMediaQuery'
 import { getFilteredLahanData, farmToLahan } from '../data'
 import ProgressBar from '../components/ui/ProgressBar'
 
+// Anchor — Cikole / Lembang vegetable-farming area, ~1300 m elevation
+const FARM_CENTER = [-6.8133, 107.6498]
+const PAN_RADIUS = 0.0025 // ~280 m radius lock
+
+// Polygon corners drawn over visible field patches at z18
 const lahanPolygons = [
   {
     id: 'A', lahan: 'Lahan A',
-    points: '90,55 490,45 510,290 110,300',
-    stroke: '#EF4444',
-    fill: 'rgba(239,68,68,0.08)',
-    labelX: 280, labelY: 170,
+    color: '#EF4444',
+    coords: [
+      [-6.8121, 107.6481],
+      [-6.8120, 107.6494],
+      [-6.8129, 107.6495],
+      [-6.8130, 107.6482],
+    ],
   },
   {
     id: 'B', lahan: 'Lahan B',
-    points: '500,25 810,55 820,240 490,230',
-    stroke: '#22C55E',
-    fill: 'rgba(34,197,94,0.08)',
-    labelX: 650, labelY: 135,
+    color: '#22C55E',
+    coords: [
+      [-6.8121, 107.6499],
+      [-6.8120, 107.6512],
+      [-6.8128, 107.6513],
+      [-6.8129, 107.6500],
+    ],
   },
   {
     id: 'C', lahan: 'Lahan C',
-    points: '130,295 520,285 540,480 150,500',
-    stroke: '#F59E0B',
-    fill: 'rgba(245,158,11,0.08)',
-    labelX: 330, labelY: 390,
+    color: '#F59E0B',
+    coords: [
+      [-6.8133, 107.6486],
+      [-6.8131, 107.6504],
+      [-6.8142, 107.6505],
+      [-6.8143, 107.6487],
+    ],
   },
 ]
 
@@ -46,11 +61,16 @@ export default function Lahan() {
   const { selectedFarm, selectedTime } = filters
   const isMobile = useMediaQuery('(max-width: 767px)')
 
-  const filteredLahans = useMemo(() => getFilteredLahanData(selectedFarm, selectedTime), [selectedFarm, selectedTime])
-  const visibleLahanNames = useMemo(() => farmToLahan[selectedFarm] || farmToLahan['Semua Farm'], [selectedFarm])
+  const filteredLahans = useMemo(
+    () => getFilteredLahanData(selectedFarm, selectedTime),
+    [selectedFarm, selectedTime]
+  )
+  const visibleLahanNames = useMemo(
+    () => farmToLahan[selectedFarm] || farmToLahan['Semua Farm'],
+    [selectedFarm]
+  )
 
   const [selectedLahan, setSelectedLahan] = useState(null)
-  const [hoveredLahan, setHoveredLahan] = useState(null)
   const [irrigating, setIrrigating] = useState(null)
 
   const lahanData = selectedLahan ? filteredLahans.find(l => l.id === selectedLahan) : null
@@ -66,21 +86,22 @@ export default function Lahan() {
 
   const handleExportData = (lahanNama) => {
     notify.info(`Mengekspor data ${lahanNama}…`)
-    setTimeout(() => {
-      notify.success(`Data ${lahanNama} diekspor (CSV)`)
-    }, 1500)
+    setTimeout(() => notify.success(`Data ${lahanNama} diekspor (CSV)`), 1500)
   }
 
   const handleRefreshData = (lahanNama) => {
     notify.info(`Memperbarui data sensor ${lahanNama}…`)
-    setTimeout(() => {
-      notify.success(`Data sensor ${lahanNama} diperbarui`)
-    }, 1000)
+    setTimeout(() => notify.success(`Data sensor ${lahanNama} diperbarui`), 1000)
   }
 
   const panelInitial = isMobile ? { y: '100%' } : { x: 320 }
   const panelAnimate = isMobile ? { y: 0 } : { x: 0 }
   const panelExit = isMobile ? { y: '100%' } : { x: 320 }
+
+  const panBounds = [
+    [FARM_CENTER[0] - PAN_RADIUS, FARM_CENTER[1] - PAN_RADIUS],
+    [FARM_CENTER[0] + PAN_RADIUS, FARM_CENTER[1] + PAN_RADIUS],
+  ]
 
   return (
     <motion.div
@@ -92,49 +113,88 @@ export default function Lahan() {
       className="relative"
     >
       <div className="card overflow-hidden relative">
-        {/* SVG Map */}
-        <div
-          className="w-full"
-          style={{
-            background: '#E8EDE9',
-            backgroundImage: 'radial-gradient(circle, #C5CEC7 1px, transparent 1px)',
-            backgroundSize: '20px 20px',
-          }}
-        >
-          <svg viewBox="0 0 900 550" className="w-full h-auto">
+        <div className="relative h-[480px] md:h-[600px]">
+          <MapContainer
+            center={FARM_CENTER}
+            zoom={18}
+            minZoom={17}
+            maxZoom={19}
+            maxBounds={panBounds}
+            maxBoundsViscosity={1.0}
+            zoomControl={false}
+            attributionControl={true}
+            scrollWheelZoom={!isMobile}
+            doubleClickZoom={true}
+            dragging={true}
+            style={{ width: '100%', height: '100%' }}
+          >
+            <TileLayer
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              attribution='Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noreferrer">Esri</a>, Maxar, Earthstar Geographics'
+              maxZoom={19}
+            />
+            <ZoomControl position="topright" />
+
             {lahanPolygons.map(poly => {
               const isVisible = visibleLahanNames.includes(poly.lahan)
-              const isHovered = hoveredLahan === poly.id
               const isSelected = selectedLahan === poly.id
               return (
-                <g key={poly.id} className={isVisible ? '' : 'opacity-20 pointer-events-none'}>
-                  <polygon
-                    points={poly.points}
-                    stroke={poly.stroke}
-                    strokeWidth={isHovered || isSelected ? 4 : 2.5}
-                    fill={isHovered || isSelected ? poly.fill.replace('0.08', '0.22') : poly.fill}
-                    className={clsx('transition-all duration-200', isVisible && 'cursor-pointer')}
-                    onClick={() => isVisible && setSelectedLahan(poly.id)}
-                    onMouseEnter={() => isVisible && setHoveredLahan(poly.id)}
-                    onMouseLeave={() => setHoveredLahan(null)}
-                  />
-                  <text
-                    x={poly.labelX}
-                    y={poly.labelY}
-                    textAnchor="middle"
-                    className="pointer-events-none select-none"
-                    fill={poly.stroke}
-                    fontSize="20"
-                    fontWeight="600"
-                    fontFamily="Inter, system-ui, sans-serif"
-                    opacity={isVisible ? 1 : 0.3}
-                  >
-                    Lahan {poly.id}
-                  </text>
-                </g>
+                <Polygon
+                  key={poly.id}
+                  positions={poly.coords}
+                  pathOptions={{
+                    color: poly.color,
+                    weight: isSelected ? 4 : 2.5,
+                    fillColor: poly.color,
+                    fillOpacity: isVisible ? (isSelected ? 0.4 : 0.22) : 0.05,
+                    opacity: isVisible ? 1 : 0.25,
+                    dashArray: isVisible ? null : '4 4',
+                  }}
+                  eventHandlers={{
+                    click: () => isVisible && setSelectedLahan(poly.id),
+                    mouseover: (e) => isVisible && e.target.setStyle({ fillOpacity: 0.4, weight: 4 }),
+                    mouseout: (e) => {
+                      if (!isVisible) return
+                      e.target.setStyle({
+                        fillOpacity: isSelected ? 0.4 : 0.22,
+                        weight: isSelected ? 4 : 2.5,
+                      })
+                    },
+                  }}
+                >
+                  {isVisible && (
+                    <Tooltip
+                      permanent
+                      direction="center"
+                      className="lahan-label"
+                      opacity={1}
+                    >
+                      Lahan {poly.id}
+                    </Tooltip>
+                  )}
+                </Polygon>
               )
             })}
-          </svg>
+          </MapContainer>
+
+          {/* Compass + scale overlay (decorative) */}
+          <div className="absolute top-3 left-3 z-[400] bg-white/90 backdrop-blur-sm rounded-lg px-2.5 py-2 shadow-md flex items-center gap-1.5 pointer-events-none">
+            <Compass className="w-4 h-4 text-kapori-600" />
+            <span className="text-xs font-semibold text-gray-700">Lembang, Bandung Barat</span>
+          </div>
+
+          {/* Legend */}
+          <div className="absolute bottom-3 left-3 z-[400] bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 shadow-md">
+            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Status Lahan</p>
+            <div className="space-y-0.5">
+              {lahanPolygons.map(p => (
+                <div key={p.id} className="flex items-center gap-2 text-xs">
+                  <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: p.color }} />
+                  <span className="text-gray-700">Lahan {p.id}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Detail Panel + mobile backdrop */}
@@ -161,10 +221,9 @@ export default function Lahan() {
                   'bg-white shadow-xl overflow-y-auto',
                   isMobile
                     ? 'fixed bottom-0 left-0 right-0 max-h-[85vh] rounded-t-2xl z-40'
-                    : 'absolute top-0 right-0 h-full w-80 border-l border-gray-100 z-10'
+                    : 'absolute top-0 right-0 h-full w-80 border-l border-gray-100 z-[500]'
                 )}
               >
-                {/* Mobile drag handle */}
                 {isMobile && (
                   <div className="pt-2 pb-1 flex justify-center sticky top-0 bg-white">
                     <div className="w-10 h-1 bg-gray-200 rounded-full" />
@@ -262,6 +321,10 @@ export default function Lahan() {
           )}
         </AnimatePresence>
       </div>
+
+      <p className="text-xs text-gray-400 mt-2 px-1">
+        Tampilan satellite area Lembang, Jawa Barat. Polygon lahan adalah simulasi untuk demo.
+      </p>
     </motion.div>
   )
 }

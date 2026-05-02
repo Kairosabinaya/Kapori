@@ -232,30 +232,30 @@ export default function Lahan() {
                       <p className="text-[10px] text-gray-400 mt-1">{sensor.id} · {sensor.lahan}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                    <div className="flex justify-between items-baseline gap-2">
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex justify-between items-baseline gap-4">
                       <span className="text-gray-500">Kelembaban</span>
-                      <span className="font-semibold text-gray-800">{sensor.kelembaban}%</span>
+                      <span className="font-semibold text-gray-800 tabular-nums">{sensor.kelembaban}%</span>
                     </div>
-                    <div className="flex justify-between items-baseline gap-2">
+                    <div className="flex justify-between items-baseline gap-4">
                       <span className="text-gray-500">Suhu</span>
-                      <span className="font-semibold text-gray-800">{sensor.suhu}°C</span>
+                      <span className="font-semibold text-gray-800 tabular-nums">{sensor.suhu}°C</span>
                     </div>
-                    <div className="flex justify-between items-baseline gap-2">
-                      <span className="text-gray-500">pH</span>
-                      <span className="font-semibold text-gray-800">{sensor.ph}</span>
+                    <div className="flex justify-between items-baseline gap-4">
+                      <span className="text-gray-500">pH tanah</span>
+                      <span className="font-semibold text-gray-800 tabular-nums">{sensor.ph}</span>
                     </div>
-                    <div className="flex justify-between items-baseline gap-2">
-                      <span className="text-gray-500">EC</span>
-                      <span className="font-semibold text-gray-800">{sensor.ec}</span>
+                    <div className="flex justify-between items-baseline gap-4">
+                      <span className="text-gray-500">Konduktivitas</span>
+                      <span className="font-semibold text-gray-800 tabular-nums">{sensor.ec} dS/m</span>
                     </div>
-                    <div className="flex justify-between items-baseline gap-2">
-                      <span className="text-gray-500">NPK</span>
-                      <span className="font-semibold text-gray-800">{sensor.npk}</span>
+                    <div className="flex justify-between items-baseline gap-4">
+                      <span className="text-gray-500">Indeks NPK</span>
+                      <span className="font-semibold text-gray-800 tabular-nums">{sensor.npk}</span>
                     </div>
-                    <div className="flex justify-between items-baseline gap-2">
-                      <span className="text-gray-500">Sehat</span>
-                      <span className="font-semibold text-gray-800">{sensor.sistemHealth}%</span>
+                    <div className="flex justify-between items-baseline gap-4">
+                      <span className="text-gray-500">Kesehatan</span>
+                      <span className="font-semibold text-gray-800 tabular-nums">{sensor.sistemHealth}%</span>
                     </div>
                   </div>
                   <p className="text-[10px] text-gray-400 pt-2.5 mt-2.5 border-t border-gray-100">

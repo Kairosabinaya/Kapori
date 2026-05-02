@@ -221,44 +221,44 @@ export default function Lahan() {
                 opacity={1}
                 className="sensor-tooltip"
               >
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                <div>
+                  <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-gray-100">
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: color }}
                     />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-gray-800 leading-tight">{sensor.nama}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">{sensor.id} · {sensor.lahan}</p>
+                    <div className="min-w-0 flex-1 leading-tight">
+                      <p className="text-[13px] font-bold text-gray-800">{sensor.nama}</p>
+                      <p className="text-[10px] text-gray-400 mt-1">{sensor.id} · {sensor.lahan}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                    <div className="flex justify-between gap-2">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    <div className="flex justify-between items-baseline gap-2">
                       <span className="text-gray-500">Kelembaban</span>
                       <span className="font-semibold text-gray-800">{sensor.kelembaban}%</span>
                     </div>
-                    <div className="flex justify-between gap-2">
+                    <div className="flex justify-between items-baseline gap-2">
                       <span className="text-gray-500">Suhu</span>
                       <span className="font-semibold text-gray-800">{sensor.suhu}°C</span>
                     </div>
-                    <div className="flex justify-between gap-2">
+                    <div className="flex justify-between items-baseline gap-2">
                       <span className="text-gray-500">pH</span>
                       <span className="font-semibold text-gray-800">{sensor.ph}</span>
                     </div>
-                    <div className="flex justify-between gap-2">
+                    <div className="flex justify-between items-baseline gap-2">
                       <span className="text-gray-500">EC</span>
                       <span className="font-semibold text-gray-800">{sensor.ec}</span>
                     </div>
-                    <div className="flex justify-between gap-2">
+                    <div className="flex justify-between items-baseline gap-2">
                       <span className="text-gray-500">NPK</span>
                       <span className="font-semibold text-gray-800">{sensor.npk}</span>
                     </div>
-                    <div className="flex justify-between gap-2">
+                    <div className="flex justify-between items-baseline gap-2">
                       <span className="text-gray-500">Sehat</span>
                       <span className="font-semibold text-gray-800">{sensor.sistemHealth}%</span>
                     </div>
                   </div>
-                  <p className="text-[10px] text-gray-400 pt-1.5 border-t border-gray-100">
+                  <p className="text-[10px] text-gray-400 pt-2.5 mt-2.5 border-t border-gray-100">
                     Terakhir lapor: {sensor.lastReport} · cakupan ~100 m
                   </p>
                 </div>

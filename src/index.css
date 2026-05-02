@@ -60,22 +60,25 @@ body { font-family: 'Inter', system-ui, sans-serif; background-color: #F1F5F2; }
 }
 .lahan-label::before { display: none !important; }
 
-/* Sensor hover tooltip */
+/* Sensor hover tooltip — Leaflet default has tight padding + nowrap, override fully */
 .sensor-tooltip {
   background: white !important;
   border: none !important;
   border-radius: 12px !important;
-  padding: 12px 14px !important;
+  padding: 14px 16px !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18) !important;
   font-family: 'Inter', system-ui, sans-serif !important;
-  min-width: 220px;
-  max-width: 260px;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  color: #1f2937;
+  min-width: 240px;
+  max-width: 280px;
   white-space: normal !important;
   pointer-events: none;
 }
-.sensor-tooltip::before {
-  border-top-color: white !important;
-}
+.sensor-tooltip * { white-space: normal !important; }
+.sensor-tooltip p { margin: 0 !important; }
+.sensor-tooltip::before { border-top-color: white !important; }
 
 /* Sensor marker subtle pulse on default */
 .leaflet-interactive.sensor-marker {

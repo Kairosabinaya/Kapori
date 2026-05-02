@@ -57,10 +57,10 @@ export default function Overview() {
           <motion.div
             exit={{ opacity: 0, height: 0, marginBottom: 0 }}
             transition={{ duration: 0.3 }}
-            className={`rounded-2xl p-4 md:p-5 border-2 transition-all duration-300 ${
+            className={`rounded-2xl p-4 md:p-5 border-2 transition-colors duration-300 ${
               insightApplied
                 ? 'border-kapori-300 bg-kapori-50'
-                : 'border-kapori-500 animate-pulse-slow bg-white'
+                : 'border-kapori-500 bg-white'
             }`}
           >
             <div className="flex items-start gap-3 mb-4 flex-wrap">
@@ -73,7 +73,13 @@ export default function Overview() {
               {insightApplied ? (
                 <span className="badge bg-green-100 text-green-700">Aksi diterapkan</span>
               ) : (
-                <span className="badge bg-red-100 text-red-700">Prioritas tinggi</span>
+                <span className="badge bg-red-100 text-red-700 inline-flex items-center gap-1.5">
+                  <span className="relative flex w-2 h-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-60"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                  </span>
+                  Prioritas tinggi
+                </span>
               )}
             </div>
 

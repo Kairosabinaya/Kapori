@@ -12,7 +12,7 @@ import Pengaturan from './pages/Pengaturan'
 
 export default function App() {
   const [acknowledgedAlerts, setAcknowledgedAlerts] = useState([])
-  const [selectedFarm, setSelectedFarm] = useState('Semua Farm')
+  const [selectedFarm, setSelectedFarm] = useState('Semua Area')
   const [selectedTime, setSelectedTime] = useState('Hari Ini')
 
   const handleAcknowledge = (id) => {

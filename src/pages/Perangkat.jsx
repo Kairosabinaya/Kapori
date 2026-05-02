@@ -35,7 +35,7 @@ export default function Perangkat() {
   const [diagnosticDevice, setDiagnosticDevice] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [newDeviceName, setNewDeviceName] = useState('')
-  const [newDeviceLahan, setNewDeviceLahan] = useState('Lahan A')
+  const [newDeviceLahan, setNewDeviceLahan] = useState('Lahan Utama')
   const [addingDevice, setAddingDevice] = useState(false)
   const [restartingIds, setRestartingIds] = useState([])
   const [removeConfirm, setRemoveConfirm] = useState(null)
@@ -46,7 +46,7 @@ export default function Perangkat() {
   const handleAddDevice = () => {
     setShowAddModal(true)
     setNewDeviceName('')
-    setNewDeviceLahan('Lahan A')
+    setNewDeviceLahan('Lahan Utama')
   }
 
   const handleConfirmAdd = () => {
@@ -315,7 +315,7 @@ export default function Perangkat() {
             <input
               value={newDeviceName}
               onChange={e => setNewDeviceName(e.target.value)}
-              placeholder="Mis. Sensor Suhu Lahan D"
+              placeholder="Mis. Sensor Suhu Cadangan"
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kapori-500 focus:border-transparent"
             />
           </div>
@@ -345,9 +345,9 @@ export default function Perangkat() {
               onChange={e => setNewDeviceLahan(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kapori-500 focus:border-transparent bg-white"
             >
-              <option>Lahan A</option>
-              <option>Lahan B</option>
-              <option>Lahan C</option>
+              <option>Lahan Utama</option>
+              <option>Lahan Selatan</option>
+              <option>Lahan Barat</option>
             </select>
           </div>
           <motion.button

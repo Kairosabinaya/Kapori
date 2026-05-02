@@ -26,7 +26,7 @@ export default function Sidebar({
   selectedFarm,
 }) {
   const location = useLocation()
-  const filteredAlerts = getFilteredAlerts(selectedFarm || 'Semua Farm')
+  const filteredAlerts = getFilteredAlerts(selectedFarm || 'Semua Area')
   const unacknowledgedCount = filteredAlerts.filter(a => !acknowledgedAlerts.includes(a.id)).length
 
   // On mobile drawer, always show full content; collapse only matters on desktop

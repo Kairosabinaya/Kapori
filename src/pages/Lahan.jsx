@@ -1,68 +1,68 @@
 import { useState, useMemo } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MapContainer, TileLayer, Polygon, Tooltip, ZoomControl } from 'react-leaflet'
-import { X, Droplets, Thermometer, TestTube, Zap, Leaf, ShieldCheck, Navigation, Download, RefreshCw, Compass } from 'lucide-react'
+import { MapContainer, TileLayer, Polygon, Tooltip, ZoomControl, CircleMarker, Popup } from 'react-leaflet'
+import {
+  X, Droplets, Thermometer, TestTube, Zap, Leaf, ShieldCheck,
+  Navigation, Download, RefreshCw, Compass, Radio
+} from 'lucide-react'
 import clsx from 'clsx'
 import { notify } from '../lib/notify'
 import { useMediaQuery } from '../lib/useMediaQuery'
-import { getFilteredLahanData, farmToLahan } from '../data'
+import { getFilteredLahanData, farmToLahan, sensors } from '../data'
 import ProgressBar from '../components/ui/ProgressBar'
 
-// Anchor — Lembang vegetable-farming area, ~1300 m elevation
-// Center is the geographical midpoint of the 3 user-plotted polygons
-const FARM_CENTER = [-6.80498, 107.61335]
-const PAN_RADIUS = 0.004 // ~445 m radius lock
+// Anchor — Nganjuk, Jawa Timur agricultural plain
+const FARM_CENTER = [-7.5915, 111.9111]
+const PAN_RADIUS = 0.012 // ~1.3 km radius lock
 
-// Polygon corners — user-plotted via geojson.io over actual field patches
+// Polygon corners — user-plotted via geojson.io
 const lahanPolygons = [
   {
-    id: 'A', lahan: 'Lahan A',
+    id: 'utama', lahan: 'Lahan Utama',
     color: '#EF4444',
     coords: [
-      [-6.802087337904382, 107.61087919400745],
-      [-6.802591865430742, 107.61071598561307],
-      [-6.802783368798188, 107.61121917888010],
-      [-6.803623708603325, 107.61088075278388],
-      [-6.803814068114860, 107.61130881167668],
-      [-6.804613404189766, 107.61105308606238],
-      [-6.804872845970479, 107.61166907236054],
-      [-6.805442408581584, 107.61142192155233],
-      [-6.805713553831254, 107.61217119966375],
-      [-6.802705240523821, 107.61287015445430],
+      [-7.585828036297912, 111.90909196387753],
+      [-7.592086858726859, 111.90899593151477],
+      [-7.592420025428197, 111.91636641530340],
+      [-7.586898943932937, 111.91723070656230],
+      [-7.586161207848249, 111.91547811595382],
     ],
   },
   {
-    id: 'B', lahan: 'Lahan B',
+    id: 'selatan', lahan: 'Lahan Selatan',
     color: '#22C55E',
     coords: [
-      [-6.803254483494541, 107.61280391334867],
-      [-6.805706073396962, 107.61220074793573],
-      [-6.807208585322229, 107.61152698059135],
-      [-6.807926546660355, 107.61274218993560],
-      [-6.803994482962722, 107.61444934687370],
+      [-7.592205846863834, 111.90618698492568],
+      [-7.594204842642057, 111.90606694447229],
+      [-7.595370919219334, 111.90966815805012],
+      [-7.596727371663690, 111.90940406905452],
+      [-7.597203318874335, 111.91187690237780],
+      [-7.596108639500514, 111.91317333926526],
+      [-7.593895474856510, 111.91389358198006],
+      [-7.593419523980927, 111.91360548489382],
     ],
   },
   {
-    id: 'C', lahan: 'Lahan C',
+    id: 'barat', lahan: 'Lahan Barat',
     color: '#F59E0B',
     coords: [
-      [-6.804051549245017, 107.61448540245914],
-      [-6.807516832982671, 107.61293407407805],
-      [-6.807886654408250, 107.61397230350019],
-      [-6.807530413346512, 107.61413370889267],
-      [-6.807571094003748, 107.61425892725953],
-      [-6.807799918584294, 107.61491423086227],
-      [-6.807893309226941, 107.61528566877422],
-      [-6.807604925465910, 107.61565896736312],
-      [-6.806838808407974, 107.61595265567110],
-      [-6.805980921393342, 107.61617628021816],
-      [-6.805548307943198, 107.61606028781097],
-      [-6.805074865478446, 107.61613253761857],
-      [-6.804589648274032, 107.61498659672009],
+      [-7.587136923045165, 111.90498658039905],
+      [-7.589254931345479, 111.90496257230842],
+      [-7.589254931345479, 111.90621099301626],
+      [-7.591230143167977, 111.90609095256292],
+      [-7.591253940845661, 111.90673917100759],
+      [-7.591182547808771, 111.90889989915394],
+      [-7.586970337680953, 111.90887589106325],
     ],
   },
 ]
+
+// Map lahan name -> color (for sensor dots)
+const lahanColor = lahanPolygons.reduce((acc, p) => {
+  acc[p.lahan] = p.color
+  return acc
+}, {})
 
 const metricIcons = [
   { key: 'kelembaban', icon: Droplets, label: 'Kelembaban', unit: '%', color: 'blue', max: 100 },
@@ -83,21 +83,23 @@ export default function Lahan() {
     [selectedFarm, selectedTime]
   )
   const visibleLahanNames = useMemo(
-    () => farmToLahan[selectedFarm] || farmToLahan['Semua Farm'],
+    () => farmToLahan[selectedFarm] || farmToLahan['Semua Area'],
     [selectedFarm]
   )
 
   const [selectedLahan, setSelectedLahan] = useState(null)
   const [irrigating, setIrrigating] = useState(null)
 
-  const lahanData = selectedLahan ? filteredLahans.find(l => l.id === selectedLahan) : null
+  const lahanData = selectedLahan
+    ? filteredLahans.find(l => l.id === selectedLahan)
+    : null
 
-  const handleIrigate = (lahanId) => {
-    setIrrigating(lahanId)
-    notify.info(`Memulai irigasi untuk Lahan ${lahanId}…`)
+  const handleIrigate = (lahanNama) => {
+    setIrrigating(lahanNama)
+    notify.info(`Memulai irigasi untuk ${lahanNama}…`)
     setTimeout(() => {
       setIrrigating(null)
-      notify.success(`Irigasi Lahan ${lahanId} dimulai`)
+      notify.success(`Irigasi ${lahanNama} dimulai`)
     }, 2000)
   }
 
@@ -130,8 +132,8 @@ export default function Lahan() {
     >
       <MapContainer
         center={FARM_CENTER}
-        zoom={17}
-        minZoom={16}
+        zoom={16}
+        minZoom={14}
         maxZoom={19}
         maxBounds={panBounds}
         maxBoundsViscosity={1.0}
@@ -149,6 +151,7 @@ export default function Lahan() {
         />
         <ZoomControl position="topright" />
 
+        {/* Lahan polygons */}
         {lahanPolygons.map(poly => {
           const isVisible = visibleLahanNames.includes(poly.lahan)
           const isSelected = selectedLahan === poly.id
@@ -183,10 +186,79 @@ export default function Lahan() {
                   className="lahan-label"
                   opacity={1}
                 >
-                  Lahan {poly.id}
+                  Lahan {poly.lahan.replace('Lahan ', '')}
                 </Tooltip>
               )}
             </Polygon>
+          )
+        })}
+
+        {/* Sensor markers */}
+        {sensors.map(sensor => {
+          const isVisible = visibleLahanNames.includes(sensor.lahan)
+          if (!isVisible) return null
+          const color = lahanColor[sensor.lahan] || '#2D6A4F'
+          return (
+            <CircleMarker
+              key={sensor.id}
+              center={sensor.position}
+              radius={7}
+              pathOptions={{
+                color: 'white',
+                weight: 2.5,
+                fillColor: color,
+                fillOpacity: 1,
+                className: 'sensor-marker',
+              }}
+              eventHandlers={{
+                mouseover: (e) => e.target.setRadius(9),
+                mouseout: (e) => e.target.setRadius(7),
+              }}
+            >
+              <Popup className="sensor-popup" closeButton={false} maxWidth={260}>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: color }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-gray-800 leading-tight">{sensor.nama}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{sensor.id} · {sensor.lahan}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-500">Kelembaban</span>
+                      <span className="font-semibold text-gray-800">{sensor.kelembaban}%</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-500">Suhu</span>
+                      <span className="font-semibold text-gray-800">{sensor.suhu}°C</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-500">pH</span>
+                      <span className="font-semibold text-gray-800">{sensor.ph}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-500">EC</span>
+                      <span className="font-semibold text-gray-800">{sensor.ec}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-500">NPK</span>
+                      <span className="font-semibold text-gray-800">{sensor.npk}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-500">Sehat</span>
+                      <span className="font-semibold text-gray-800">{sensor.sistemHealth}%</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-400 pt-1.5 border-t border-gray-100">
+                    Terakhir lapor: {sensor.lastReport} · cakupan ~100 m
+                  </p>
+                </div>
+              </Popup>
+            </CircleMarker>
           )
         })}
       </MapContainer>
@@ -195,74 +267,79 @@ export default function Lahan() {
       <div className="absolute top-3 left-3 z-[400] bg-white/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-md flex items-center gap-2 pointer-events-none">
         <Compass className="w-4 h-4 text-kapori-600" />
         <div className="leading-tight">
-          <p className="text-xs font-semibold text-gray-800">Lembang, Bandung Barat</p>
-          <p className="text-[10px] text-gray-400">Polygon lahan: simulasi demo</p>
+          <p className="text-xs font-semibold text-gray-800">Nganjuk, Jawa Timur</p>
+          <p className="text-[10px] text-gray-400">Polygon &amp; sensor: simulasi demo</p>
         </div>
       </div>
 
       {/* Legend */}
       <div className="absolute bottom-6 left-3 z-[400] bg-white/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-md">
-        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Status Lahan</p>
-        <div className="space-y-0.5">
+        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Status Lahan</p>
+        <div className="space-y-1">
           {lahanPolygons.map(p => (
             <div key={p.id} className="flex items-center gap-2 text-xs">
               <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: p.color }} />
-              <span className="text-gray-700">Lahan {p.id}</span>
+              <span className="text-gray-700">{p.lahan}</span>
             </div>
           ))}
+        </div>
+        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-1.5 text-[10px] text-gray-500">
+          <Radio className="w-3 h-3" />
+          <span>{sensors.length} titik sensor</span>
         </div>
       </div>
 
       {/* Detail Panel + mobile backdrop */}
-        <AnimatePresence>
-          {lahanData && (
-            <>
-              {isMobile && (
-                <motion.div
-                  key="backdrop"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={() => setSelectedLahan(null)}
-                  className="fixed inset-0 bg-black/40 z-30"
-                />
-              )}
+      <AnimatePresence>
+        {lahanData && (
+          <>
+            {isMobile && (
               <motion.div
-                key="panel"
-                initial={panelInitial}
-                animate={panelAnimate}
-                exit={panelExit}
-                transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-                className={clsx(
-                  'bg-white shadow-xl overflow-y-auto',
-                  isMobile
-                    ? 'fixed bottom-0 left-0 right-0 max-h-[85vh] rounded-t-2xl z-40'
-                    : 'absolute top-0 right-0 h-full w-80 border-l border-gray-100 z-[500]'
-                )}
-              >
-                {isMobile && (
-                  <div className="pt-2 pb-1 flex justify-center sticky top-0 bg-white">
-                    <div className="w-10 h-1 bg-gray-200 rounded-full" />
-                  </div>
-                )}
+                key="backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSelectedLahan(null)}
+                className="fixed inset-0 bg-black/40 z-30"
+              />
+            )}
+            <motion.div
+              key="panel"
+              initial={panelInitial}
+              animate={panelAnimate}
+              exit={panelExit}
+              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+              className={clsx(
+                'bg-white shadow-xl overflow-y-auto',
+                isMobile
+                  ? 'fixed bottom-0 left-0 right-0 max-h-[85vh] rounded-t-2xl z-40'
+                  : 'absolute top-0 right-0 h-full w-80 border-l border-gray-100 z-[500]'
+              )}
+            >
+              {isMobile && (
+                <div className="pt-2 pb-1 flex justify-center sticky top-0 bg-white">
+                  <div className="w-10 h-1 bg-gray-200 rounded-full" />
+                </div>
+              )}
 
-                <div className="p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: lahanData.warna }} />
-                      <h3 className="font-bold text-gray-800 truncate">{lahanData.nama}</h3>
-                    </div>
-                    <button
-                      onClick={() => setSelectedLahan(null)}
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
-                      aria-label="Tutup detail"
-                    >
-                      <X className="w-4 h-4 text-gray-500" />
-                    </button>
+              <div className="p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: lahanData.warna }} />
+                    <h3 className="font-bold text-gray-800 truncate">{lahanData.nama}</h3>
                   </div>
+                  <button
+                    onClick={() => setSelectedLahan(null)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
+                    aria-label="Tutup detail"
+                  >
+                    <X className="w-4 h-4 text-gray-500" />
+                  </button>
+                </div>
 
+                <div className="flex items-center gap-2 flex-wrap mb-4">
                   <div className={clsx(
-                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold mb-4',
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold',
                     lahanData.status === 'normal' && 'bg-green-100 text-green-700',
                     lahanData.status === 'perhatian' && 'bg-red-100 text-red-700',
                     lahanData.status === 'peringatan' && 'bg-amber-100 text-amber-700',
@@ -276,66 +353,71 @@ export default function Lahan() {
                     {lahanData.status === 'normal' ? 'Normal' :
                      lahanData.status === 'perhatian' ? 'Perlu perhatian' : 'Peringatan'}
                   </div>
+                  <span className="badge bg-gray-100 text-gray-600 flex items-center gap-1">
+                    <Radio className="w-3 h-3" />
+                    {lahanData.sensorCount} sensor · rata-rata
+                  </span>
+                </div>
 
-                  <p className="text-sm text-gray-500 mb-5">{lahanData.keterangan}</p>
+                <p className="text-sm text-gray-500 mb-5">{lahanData.keterangan}</p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-3 mb-5">
-                    {metricIcons.map(m => {
-                      const Icon = m.icon
-                      const val = lahanData[m.key]
-                      return (
-                        <div key={m.key} className="p-3 bg-gray-50 rounded-xl">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2">
-                              <Icon className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm text-gray-600">{m.label}</span>
-                            </div>
-                            <span className="text-sm font-bold text-gray-800">{val} {m.unit}</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-3 mb-5">
+                  {metricIcons.map(m => {
+                    const Icon = m.icon
+                    const val = lahanData[m.key]
+                    return (
+                      <div key={m.key} className="p-3 bg-gray-50 rounded-xl">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <Icon className="w-4 h-4 text-gray-400" />
+                            <span className="text-sm text-gray-600">{m.label}</span>
                           </div>
-                          <ProgressBar value={val} max={m.max} color={m.color} />
+                          <span className="text-sm font-bold text-gray-800">{val} {m.unit}</span>
                         </div>
-                      )
-                    })}
-                  </div>
+                        <ProgressBar value={val} max={m.max} color={m.color} />
+                      </div>
+                    )
+                  })}
+                </div>
 
-                  <div className="space-y-2">
+                <div className="space-y-2">
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => handleIrigate(lahanData.nama)}
+                    disabled={irrigating === lahanData.nama}
+                    className={clsx(
+                      'btn-primary w-full flex items-center justify-center gap-2 text-sm py-2.5',
+                      irrigating === lahanData.nama && 'opacity-70 cursor-wait'
+                    )}
+                  >
+                    {irrigating === lahanData.nama ? (
+                      <><RefreshCw className="w-4 h-4 animate-spin" />Memulai irigasi…</>
+                    ) : (
+                      <><Navigation className="w-4 h-4" />Mulai irigasi</>
+                    )}
+                  </motion.button>
+                  <div className="flex gap-2">
                     <motion.button
                       whileTap={{ scale: 0.97 }}
-                      onClick={() => handleIrigate(lahanData.id)}
-                      disabled={irrigating === lahanData.id}
-                      className={clsx(
-                        'btn-primary w-full flex items-center justify-center gap-2 text-sm py-2.5',
-                        irrigating === lahanData.id && 'opacity-70 cursor-wait'
-                      )}
+                      onClick={() => handleExportData(lahanData.nama)}
+                      className="btn-ghost flex-1 flex items-center justify-center gap-1.5 text-sm py-2.5"
                     >
-                      {irrigating === lahanData.id ? (
-                        <><RefreshCw className="w-4 h-4 animate-spin" />Memulai irigasi…</>
-                      ) : (
-                        <><Navigation className="w-4 h-4" />Mulai irigasi</>
-                      )}
+                      <Download className="w-3.5 h-3.5" />Ekspor data
                     </motion.button>
-                    <div className="flex gap-2">
-                      <motion.button
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => handleExportData(lahanData.nama)}
-                        className="btn-ghost flex-1 flex items-center justify-center gap-1.5 text-sm py-2.5"
-                      >
-                        <Download className="w-3.5 h-3.5" />Ekspor data
-                      </motion.button>
-                      <motion.button
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => handleRefreshData(lahanData.nama)}
-                        className="btn-ghost flex-1 flex items-center justify-center gap-1.5 text-sm py-2.5"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />Refresh
-                      </motion.button>
-                    </div>
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => handleRefreshData(lahanData.nama)}
+                      className="btn-ghost flex-1 flex items-center justify-center gap-1.5 text-sm py-2.5"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />Refresh
+                    </motion.button>
                   </div>
                 </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

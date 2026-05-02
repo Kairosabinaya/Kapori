@@ -20,7 +20,7 @@ const CustomTooltip = ({ active, payload, label, isHourly }) => {
   )
 }
 
-export default function FieldPerformanceChart({ farm = 'Semua Farm', time = 'Hari Ini' }) {
+export default function FieldPerformanceChart({ farm = 'Semua Area', time = 'Hari Ini' }) {
   const data = useMemo(() => generateChartData(farm, time), [farm, time])
   const isHourly = time === 'Hari Ini'
 

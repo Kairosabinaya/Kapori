@@ -11,7 +11,7 @@ import Modal from '../components/ui/Modal'
 import { getFilteredReports } from '../data'
 
 const reportTypes = ['Performa Bulanan', 'Metrik Tanah', 'Log Irigasi', 'Ringkasan Harian']
-const lahanOptions = ['Semua Lahan', 'Lahan A', 'Lahan B', 'Lahan C']
+const lahanOptions = ['Semua Lahan', 'Lahan Utama', 'Lahan Selatan', 'Lahan Barat']
 const formatOptions = ['PDF', 'CSV', 'Excel']
 const formatColors = {
   PDF: 'text-red-500 bg-red-50',

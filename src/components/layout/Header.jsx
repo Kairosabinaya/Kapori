@@ -16,7 +16,7 @@ const pageTitles = {
   '/pengaturan': 'Pengaturan',
 }
 
-const farmOptions = ['Semua Farm', 'Farm Utama', 'Farm Selatan', 'Farm Barat']
+const farmOptions = ['Semua Area', 'Area Utama', 'Area Selatan', 'Area Barat']
 const timeOptions = ['Hari Ini', '7 Hari Terakhir', '30 Hari Terakhir', 'Bulan Ini', 'Kustom']
 
 const farmFilterRoutes = ['/overview', '/inteligensi', '/lahan', '/perangkat', '/peringatan', '/laporan']
@@ -135,7 +135,7 @@ export default function Header({ acknowledgedAlerts = [], filters, onMobileMenuT
                 value={selectedFarm}
                 onChange={setSelectedFarm}
                 menuAlign="right"
-                label="Filter farm"
+                label="Filter area"
               />
             )}
             {showTimeFilter && (
@@ -279,7 +279,7 @@ export default function Header({ acknowledgedAlerts = [], filters, onMobileMenuT
               value={selectedFarm}
               onChange={setSelectedFarm}
               menuAlign="left"
-              label="Filter farm"
+              label="Filter area"
             />
           )}
           {showTimeFilter && (

@@ -33,14 +33,14 @@ export default function Overview() {
 
   const handleApply = () => {
     setInsightApplied(true)
-    notify.success('Aksi irigasi diterapkan pada Lahan A')
+    notify.success('Aksi irigasi diterapkan pada Lahan Utama')
   }
 
   const handleDismiss = () => {
     setInsightDismissed(true)
   }
 
-  const showInsight = (selectedFarm === 'Semua Farm' || selectedFarm === 'Farm Utama')
+  const showInsight = (selectedFarm === 'Semua Area' || selectedFarm === 'Area Utama')
 
   return (
     <motion.div
@@ -78,7 +78,7 @@ export default function Overview() {
             </div>
 
             <p className="text-gray-700 font-medium mb-4">
-              Lahan A akan mengalami stres air dalam 5 jam.
+              Lahan Utama akan mengalami stres air dalam 5 jam.
             </p>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-5">

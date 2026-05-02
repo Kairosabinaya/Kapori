@@ -73,13 +73,7 @@ export default function Overview() {
               {insightApplied ? (
                 <span className="badge bg-green-100 text-green-700">Aksi diterapkan</span>
               ) : (
-                <span className="badge bg-red-100 text-red-700 inline-flex items-center gap-1.5">
-                  <span className="relative flex w-2 h-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-60"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                  </span>
-                  Prioritas tinggi
-                </span>
+                <span className="badge bg-red-100 text-red-700">Prioritas tinggi</span>
               )}
             </div>
 

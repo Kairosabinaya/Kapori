@@ -3,7 +3,8 @@ import { useOutletContext } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Droplets, Thermometer, TestTube, Zap, Leaf, ShieldCheck, Navigation, Download, RefreshCw } from 'lucide-react'
 import clsx from 'clsx'
-import toast from 'react-hot-toast'
+import { notify } from '../lib/notify'
+import { useMediaQuery } from '../lib/useMediaQuery'
 import { getFilteredLahanData, farmToLahan } from '../data'
 import ProgressBar from '../components/ui/ProgressBar'
 
@@ -43,6 +44,7 @@ const metricIcons = [
 export default function Lahan() {
   const { filters } = useOutletContext()
   const { selectedFarm, selectedTime } = filters
+  const isMobile = useMediaQuery('(max-width: 767px)')
 
   const filteredLahans = useMemo(() => getFilteredLahanData(selectedFarm, selectedTime), [selectedFarm, selectedTime])
   const visibleLahanNames = useMemo(() => farmToLahan[selectedFarm] || farmToLahan['Semua Farm'], [selectedFarm])
@@ -55,38 +57,30 @@ export default function Lahan() {
 
   const handleIrigate = (lahanId) => {
     setIrrigating(lahanId)
-    toast(`💧 Memulai irigasi untuk Lahan ${lahanId}...`, {
-      style: { background: '#fff', color: '#1B4332', borderLeft: '4px solid #2D6A4F' },
-    })
+    notify.info(`Memulai irigasi untuk Lahan ${lahanId}…`)
     setTimeout(() => {
       setIrrigating(null)
-      toast(`✓ Irigasi pada Lahan ${lahanId} berhasil dimulai`, {
-        style: { background: '#fff', color: '#1B4332', borderLeft: '4px solid #2D6A4F' },
-      })
+      notify.success(`Irigasi Lahan ${lahanId} dimulai`)
     }, 2000)
   }
 
   const handleExportData = (lahanNama) => {
-    toast(`📊 Mengekspor data ${lahanNama}...`, {
-      style: { background: '#fff', color: '#1B4332', borderLeft: '4px solid #2D6A4F' },
-    })
+    notify.info(`Mengekspor data ${lahanNama}…`)
     setTimeout(() => {
-      toast(`✓ Data ${lahanNama} berhasil diekspor (CSV)`, {
-        style: { background: '#fff', color: '#1B4332', borderLeft: '4px solid #2D6A4F' },
-      })
+      notify.success(`Data ${lahanNama} diekspor (CSV)`)
     }, 1500)
   }
 
   const handleRefreshData = (lahanNama) => {
-    toast(`🔄 Memperbarui data sensor ${lahanNama}...`, {
-      style: { background: '#fff', color: '#1B4332', borderLeft: '4px solid #2D6A4F' },
-    })
+    notify.info(`Memperbarui data sensor ${lahanNama}…`)
     setTimeout(() => {
-      toast(`✓ Data sensor ${lahanNama} diperbarui`, {
-        style: { background: '#fff', color: '#1B4332', borderLeft: '4px solid #2D6A4F' },
-      })
+      notify.success(`Data sensor ${lahanNama} diperbarui`)
     }, 1000)
   }
+
+  const panelInitial = isMobile ? { y: '100%' } : { x: 320 }
+  const panelAnimate = isMobile ? { y: 0 } : { x: 0 }
+  const panelExit = isMobile ? { y: '100%' } : { x: 320 }
 
   return (
     <motion.div
@@ -130,12 +124,12 @@ export default function Lahan() {
                     textAnchor="middle"
                     className="pointer-events-none select-none"
                     fill={poly.stroke}
-                    fontSize="16"
+                    fontSize="20"
                     fontWeight="600"
                     fontFamily="Inter, system-ui, sans-serif"
                     opacity={isVisible ? 1 : 0.3}
                   >
-                    ● Lahan {poly.id}
+                    Lahan {poly.id}
                   </text>
                 </g>
               )
@@ -143,79 +137,128 @@ export default function Lahan() {
           </svg>
         </div>
 
-        {/* Detail Panel */}
+        {/* Detail Panel + mobile backdrop */}
         <AnimatePresence>
           {lahanData && (
-            <motion.div
-              initial={{ x: 320 }}
-              animate={{ x: 0 }}
-              exit={{ x: 320 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute top-0 right-0 h-full w-80 bg-white border-l border-gray-100 shadow-xl overflow-y-auto z-10"
-            >
-              <div className="p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: lahanData.warna }} />
-                    <h3 className="font-bold text-gray-800">{lahanData.nama}</h3>
+            <>
+              {isMobile && (
+                <motion.div
+                  key="backdrop"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setSelectedLahan(null)}
+                  className="fixed inset-0 bg-black/40 z-30"
+                />
+              )}
+              <motion.div
+                key="panel"
+                initial={panelInitial}
+                animate={panelAnimate}
+                exit={panelExit}
+                transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+                className={clsx(
+                  'bg-white shadow-xl overflow-y-auto',
+                  isMobile
+                    ? 'fixed bottom-0 left-0 right-0 max-h-[85vh] rounded-t-2xl z-40'
+                    : 'absolute top-0 right-0 h-full w-80 border-l border-gray-100 z-10'
+                )}
+              >
+                {/* Mobile drag handle */}
+                {isMobile && (
+                  <div className="pt-2 pb-1 flex justify-center sticky top-0 bg-white">
+                    <div className="w-10 h-1 bg-gray-200 rounded-full" />
                   </div>
-                  <button onClick={() => setSelectedLahan(null)} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
-                    <X className="w-4 h-4 text-gray-400" />
-                  </button>
-                </div>
+                )}
 
-                <div className={clsx(
-                  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold mb-4',
-                  lahanData.status === 'normal' && 'bg-green-100 text-green-700',
-                  lahanData.status === 'perhatian' && 'bg-red-100 text-red-700',
-                  lahanData.status === 'peringatan' && 'bg-amber-100 text-amber-700',
-                )}>
-                  <span className={clsx(
-                    'w-1.5 h-1.5 rounded-full',
-                    lahanData.status === 'normal' && 'bg-green-500',
-                    lahanData.status === 'perhatian' && 'bg-red-500',
-                    lahanData.status === 'peringatan' && 'bg-amber-500',
-                  )} />
-                  {lahanData.status === 'normal' ? 'Normal' :
-                   lahanData.status === 'perhatian' ? 'Perlu Perhatian' : 'Peringatan'}
-                </div>
+                <div className="p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: lahanData.warna }} />
+                      <h3 className="font-bold text-gray-800 truncate">{lahanData.nama}</h3>
+                    </div>
+                    <button
+                      onClick={() => setSelectedLahan(null)}
+                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
+                      aria-label="Tutup detail"
+                    >
+                      <X className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </div>
 
-                <p className="text-sm text-gray-500 mb-5">{lahanData.keterangan}</p>
+                  <div className={clsx(
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold mb-4',
+                    lahanData.status === 'normal' && 'bg-green-100 text-green-700',
+                    lahanData.status === 'perhatian' && 'bg-red-100 text-red-700',
+                    lahanData.status === 'peringatan' && 'bg-amber-100 text-amber-700',
+                  )}>
+                    <span className={clsx(
+                      'w-1.5 h-1.5 rounded-full',
+                      lahanData.status === 'normal' && 'bg-green-500',
+                      lahanData.status === 'perhatian' && 'bg-red-500',
+                      lahanData.status === 'peringatan' && 'bg-amber-500',
+                    )} />
+                    {lahanData.status === 'normal' ? 'Normal' :
+                     lahanData.status === 'perhatian' ? 'Perlu perhatian' : 'Peringatan'}
+                  </div>
 
-                <div className="space-y-3 mb-5">
-                  {metricIcons.map(m => {
-                    const Icon = m.icon
-                    const val = lahanData[m.key]
-                    return (
-                      <div key={m.key} className="p-3 bg-gray-50 rounded-xl">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-2">
-                            <Icon className="w-4 h-4 text-gray-400" />
-                            <span className="text-sm text-gray-600">{m.label}</span>
+                  <p className="text-sm text-gray-500 mb-5">{lahanData.keterangan}</p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-3 mb-5">
+                    {metricIcons.map(m => {
+                      const Icon = m.icon
+                      const val = lahanData[m.key]
+                      return (
+                        <div key={m.key} className="p-3 bg-gray-50 rounded-xl">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-2">
+                              <Icon className="w-4 h-4 text-gray-400" />
+                              <span className="text-sm text-gray-600">{m.label}</span>
+                            </div>
+                            <span className="text-sm font-bold text-gray-800">{val} {m.unit}</span>
                           </div>
-                          <span className="text-sm font-bold text-gray-800">{val} {m.unit}</span>
+                          <ProgressBar value={val} max={m.max} color={m.color} />
                         </div>
-                        <ProgressBar value={val} max={m.max} color={m.color} />
-                      </div>
-                    )
-                  })}
-                </div>
+                      )
+                    })}
+                  </div>
 
-                <div className="space-y-2">
-                  <motion.button whileTap={{ scale: 0.97 }} onClick={() => handleIrigate(lahanData.id)} disabled={irrigating === lahanData.id} className="btn-primary w-full flex items-center justify-center gap-2 text-sm">
-                    {irrigating === lahanData.id ? (<><RefreshCw className="w-4 h-4 animate-spin" />Memulai Irigasi...</>) : (<><Navigation className="w-4 h-4" />Mulai Irigasi</>)}
-                  </motion.button>
-                  <div className="flex gap-2">
-                    <motion.button whileTap={{ scale: 0.97 }} onClick={() => handleExportData(lahanData.nama)} className="btn-ghost flex-1 flex items-center justify-center gap-1.5 text-sm">
-                      <Download className="w-3.5 h-3.5" />Ekspor Data
+                  <div className="space-y-2">
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => handleIrigate(lahanData.id)}
+                      disabled={irrigating === lahanData.id}
+                      className={clsx(
+                        'btn-primary w-full flex items-center justify-center gap-2 text-sm py-2.5',
+                        irrigating === lahanData.id && 'opacity-70 cursor-wait'
+                      )}
+                    >
+                      {irrigating === lahanData.id ? (
+                        <><RefreshCw className="w-4 h-4 animate-spin" />Memulai irigasi…</>
+                      ) : (
+                        <><Navigation className="w-4 h-4" />Mulai irigasi</>
+                      )}
                     </motion.button>
-                    <motion.button whileTap={{ scale: 0.97 }} onClick={() => handleRefreshData(lahanData.nama)} className="btn-ghost flex-1 flex items-center justify-center gap-1.5 text-sm">
-                      <RefreshCw className="w-3.5 h-3.5" />Refresh
-                    </motion.button>
+                    <div className="flex gap-2">
+                      <motion.button
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => handleExportData(lahanData.nama)}
+                        className="btn-ghost flex-1 flex items-center justify-center gap-1.5 text-sm py-2.5"
+                      >
+                        <Download className="w-3.5 h-3.5" />Ekspor data
+                      </motion.button>
+                      <motion.button
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => handleRefreshData(lahanData.nama)}
+                        className="btn-ghost flex-1 flex items-center justify-center gap-1.5 text-sm py-2.5"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />Refresh
+                      </motion.button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
+            </>
           )}
         </AnimatePresence>
       </div>

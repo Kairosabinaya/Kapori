@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MapContainer, TileLayer, Polygon, Tooltip, ZoomControl, CircleMarker, Popup } from 'react-leaflet'
+import { MapContainer, TileLayer, Polygon, Tooltip, ZoomControl, CircleMarker } from 'react-leaflet'
 import {
   X, Droplets, Thermometer, TestTube, Zap, Leaf, ShieldCheck,
   Navigation, Download, RefreshCw, Compass, Radio
@@ -215,7 +215,12 @@ export default function Lahan() {
                 mouseout: (e) => e.target.setRadius(7),
               }}
             >
-              <Popup className="sensor-popup" closeButton={false} maxWidth={260}>
+              <Tooltip
+                direction="top"
+                offset={[0, -8]}
+                opacity={1}
+                className="sensor-tooltip"
+              >
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
                     <span
@@ -227,7 +232,7 @@ export default function Lahan() {
                       <p className="text-[10px] text-gray-400 mt-0.5">{sensor.id} · {sensor.lahan}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                     <div className="flex justify-between gap-2">
                       <span className="text-gray-500">Kelembaban</span>
                       <span className="font-semibold text-gray-800">{sensor.kelembaban}%</span>
@@ -257,7 +262,7 @@ export default function Lahan() {
                     Terakhir lapor: {sensor.lastReport} · cakupan ~100 m
                   </p>
                 </div>
-              </Popup>
+              </Tooltip>
             </CircleMarker>
           )
         })}

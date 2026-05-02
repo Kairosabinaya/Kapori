@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { User, Bell, Sliders, Monitor, Mail, Save, X, Camera, Check } from 'lucide-react'
+import { User, Bell, Sliders, Mail, Save, Camera, Check } from 'lucide-react'
 import clsx from 'clsx'
-import toast from 'react-hot-toast'
+import { notify } from '../lib/notify'
 import Modal from '../components/ui/Modal'
 
 function Toggle({ label, defaultChecked = false, onChange }) {
@@ -12,26 +12,30 @@ function Toggle({ label, defaultChecked = false, onChange }) {
     const newVal = !checked
     setChecked(newVal)
     if (onChange) onChange(newVal)
-    toast(newVal ? `✓ ${label} diaktifkan` : `✗ ${label} dinonaktifkan`, {
-      style: { background: '#fff', color: '#1B4332', borderLeft: `4px solid ${newVal ? '#2D6A4F' : '#9CA3AF'}` },
-    })
+    notify.success(`${label} ${newVal ? 'diaktifkan' : 'dinonaktifkan'}`)
   }
 
   return (
-    <div className="flex items-center justify-between py-3">
-      <span className="text-sm text-gray-700">{label}</span>
+    <div className="flex items-center justify-between py-3 gap-4">
+      <span className="text-sm text-gray-700 min-w-0">{label}</span>
       <button
         onClick={handleToggle}
-        className={clsx(
-          'relative w-11 h-6 rounded-full transition-colors duration-200',
-          checked ? 'bg-kapori-600' : 'bg-gray-300'
-        )}
+        className="flex items-center justify-center min-h-[44px] px-1 -my-2 shrink-0"
+        aria-label={`${checked ? 'Matikan' : 'Aktifkan'} ${label}`}
+        aria-pressed={checked}
       >
-        <motion.div
-          className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm"
-          animate={{ x: checked ? 20 : 0 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-        />
+        <span
+          className={clsx(
+            'relative w-11 h-6 rounded-full transition-colors duration-200 block',
+            checked ? 'bg-kapori-600' : 'bg-gray-300'
+          )}
+        >
+          <motion.span
+            className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm block"
+            animate={{ x: checked ? 20 : 0 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          />
+        </span>
       </button>
     </div>
   )
@@ -48,16 +52,14 @@ function SliderInput({ label, defaultValue, min, max, step = 1, unit = '' }) {
 
   const handleSave = () => {
     setSaved(true)
-    toast(`✓ ${label} diubah ke ${value}${unit}`, {
-      style: { background: '#fff', color: '#1B4332', borderLeft: '4px solid #2D6A4F' },
-    })
+    notify.success(`${label} diatur ke ${value}${unit}`)
   }
 
   return (
     <div className="py-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-gray-700">{label}</span>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <span className="text-sm text-gray-700 min-w-0">{label}</span>
+        <div className="flex items-center gap-2 shrink-0">
           <span className="text-sm font-bold text-kapori-700">{value}{unit}</span>
           {!saved && (
             <motion.button
@@ -65,7 +67,7 @@ function SliderInput({ label, defaultValue, min, max, step = 1, unit = '' }) {
               animate={{ opacity: 1, scale: 1 }}
               whileTap={{ scale: 0.9 }}
               onClick={handleSave}
-              className="text-xs bg-kapori-600 text-white px-2 py-0.5 rounded-md"
+              className="text-xs bg-kapori-600 text-white px-2.5 py-1 rounded-md hover:bg-kapori-700 transition-colors"
             >
               Simpan
             </motion.button>
@@ -80,6 +82,7 @@ function SliderInput({ label, defaultValue, min, max, step = 1, unit = '' }) {
         value={value}
         onChange={e => handleChange(Number(e.target.value))}
         className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-kapori-600"
+        aria-label={label}
       />
       <div className="flex justify-between text-xs text-gray-400 mt-1">
         <span>{min}{unit}</span>
@@ -118,9 +121,7 @@ export default function Pengaturan() {
       setProfileRole(editRole)
       setSaving(false)
       setShowEditProfile(false)
-      toast('✓ Profil berhasil diperbarui', {
-        style: { background: '#fff', color: '#1B4332', borderLeft: '4px solid #2D6A4F' },
-      })
+      notify.success('Profil diperbarui')
     }, 1000)
   }
 
@@ -132,34 +133,34 @@ export default function Pengaturan() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
-      className="space-y-6 max-w-3xl"
+      className="space-y-4 md:space-y-6 max-w-3xl"
     >
       {/* Section 1: Profil Akun */}
       <div className="card p-5">
         <div className="flex items-center gap-2 mb-4">
           <User className="w-5 h-5 text-kapori-600" />
-          <h2 className="text-lg font-bold text-gray-800">Profil Akun</h2>
+          <h2 className="text-lg font-bold text-gray-800">Profil akun</h2>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-kapori-600 text-white flex items-center justify-center text-xl font-bold relative group cursor-pointer">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="w-14 h-14 rounded-full bg-kapori-600 text-white flex items-center justify-center text-xl font-bold relative group cursor-pointer shrink-0">
             {initials}
             <div className="absolute inset-0 bg-black/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <Camera className="w-5 h-5 text-white" />
             </div>
           </div>
-          <div>
-            <p className="font-semibold text-gray-800">{profileName}</p>
-            <p className="text-sm text-gray-400 flex items-center gap-1">
-              <Mail className="w-3.5 h-3.5" /> {profileEmail}
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-gray-800 truncate">{profileName}</p>
+            <p className="text-sm text-gray-400 flex items-center gap-1 truncate">
+              <Mail className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{profileEmail}</span>
             </p>
             <span className="badge bg-kapori-800 text-white text-[10px] mt-1 inline-block">DEMO</span>
           </div>
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={openEditProfile}
-            className="btn-ghost text-sm ml-auto"
+            className="btn-ghost text-sm py-2 shrink-0"
           >
-            Edit Profil
+            Edit profil
           </motion.button>
         </div>
       </div>
@@ -168,13 +169,13 @@ export default function Pengaturan() {
       <div className="card p-5">
         <div className="flex items-center gap-2 mb-2">
           <Bell className="w-5 h-5 text-kapori-600" />
-          <h2 className="text-lg font-bold text-gray-800">Preferensi Notifikasi</h2>
+          <h2 className="text-lg font-bold text-gray-800">Preferensi notifikasi</h2>
         </div>
         <div className="divide-y divide-gray-100">
-          <Toggle label="Peringatan Kritis via Email" defaultChecked={true} />
-          <Toggle label="Peringatan Cuaca Ekstrem" defaultChecked={true} />
-          <Toggle label="Laporan Mingguan Otomatis" defaultChecked={false} />
-          <Toggle label="Update Firmware Perangkat" defaultChecked={true} />
+          <Toggle label="Peringatan kritis via email" defaultChecked={true} />
+          <Toggle label="Peringatan cuaca ekstrem" defaultChecked={true} />
+          <Toggle label="Laporan mingguan otomatis" defaultChecked={false} />
+          <Toggle label="Update firmware perangkat" defaultChecked={true} />
         </div>
       </div>
 
@@ -182,31 +183,22 @@ export default function Pengaturan() {
       <div className="card p-5">
         <div className="flex items-center gap-2 mb-2">
           <Sliders className="w-5 h-5 text-kapori-600" />
-          <h2 className="text-lg font-bold text-gray-800">Ambang Batas Peringatan</h2>
+          <h2 className="text-lg font-bold text-gray-800">Ambang batas peringatan</h2>
         </div>
         <div className="divide-y divide-gray-100">
-          <SliderInput label="Kelembaban Minimum" defaultValue={40} min={0} max={100} unit="%" />
-          <SliderInput label="Kelembaban Maksimum" defaultValue={80} min={0} max={100} unit="%" />
-          <SliderInput label="pH Minimum" defaultValue={6.0} min={4.0} max={9.0} step={0.1} />
-          <SliderInput label="pH Maksimum" defaultValue={7.5} min={4.0} max={9.0} step={0.1} />
-          <SliderInput label="Suhu Maksimum" defaultValue={35} min={20} max={50} unit="°C" />
+          <SliderInput label="Kelembaban minimum" defaultValue={40} min={0} max={100} unit="%" />
+          <SliderInput label="Kelembaban maksimum" defaultValue={80} min={0} max={100} unit="%" />
+          <SliderInput label="pH minimum" defaultValue={6.0} min={4.0} max={9.0} step={0.1} />
+          <SliderInput label="pH maksimum" defaultValue={7.5} min={4.0} max={9.0} step={0.1} />
+          <SliderInput label="Suhu maksimum" defaultValue={35} min={20} max={50} unit="°C" />
         </div>
-      </div>
-
-      {/* Section 4: Tampilan */}
-      <div className="card p-5">
-        <div className="flex items-center gap-2 mb-2">
-          <Monitor className="w-5 h-5 text-kapori-600" />
-          <h2 className="text-lg font-bold text-gray-800">Tampilan</h2>
-        </div>
-        <Toggle label="Mode Gelap" defaultChecked={false} />
       </div>
 
       {/* Edit Profile Modal */}
       <Modal
         isOpen={showEditProfile}
         onClose={() => setShowEditProfile(false)}
-        title="Edit Profil"
+        title="Edit profil"
       >
         <div className="space-y-4">
           <div className="flex justify-center">
@@ -218,36 +210,39 @@ export default function Pengaturan() {
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-600 mb-1.5 block">Nama Lengkap</label>
+            <label className="text-sm font-medium text-gray-600 mb-1.5 block">Nama lengkap</label>
             <input
               value={editName}
               onChange={e => setEditName(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kapori-500 focus:border-transparent"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-kapori-500 focus:border-transparent"
             />
           </div>
           <div>
             <label className="text-sm font-medium text-gray-600 mb-1.5 block">Email</label>
             <input
               type="email"
+              inputMode="email"
               value={editEmail}
               onChange={e => setEditEmail(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kapori-500 focus:border-transparent"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-kapori-500 focus:border-transparent"
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-600 mb-1.5 block">Nomor Telepon</label>
+            <label className="text-sm font-medium text-gray-600 mb-1.5 block">Nomor telepon</label>
             <input
+              type="tel"
+              inputMode="tel"
               value={editPhone}
               onChange={e => setEditPhone(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kapori-500 focus:border-transparent"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-kapori-500 focus:border-transparent"
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-600 mb-1.5 block">Role</label>
+            <label className="text-sm font-medium text-gray-600 mb-1.5 block">Peran</label>
             <select
               value={editRole}
               onChange={e => setEditRole(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kapori-500 focus:border-transparent"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-kapori-500 focus:border-transparent bg-white"
             >
               <option>Administrator</option>
               <option>Manajer Farm</option>
@@ -260,26 +255,26 @@ export default function Pengaturan() {
               whileTap={{ scale: 0.97 }}
               onClick={handleSaveProfile}
               disabled={saving}
-              className="btn-primary flex-1 flex items-center justify-center gap-2 text-sm"
+              className="btn-primary flex-1 flex items-center justify-center gap-2 text-sm py-2.5"
             >
               {saving ? (
                 <>
                   <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
                     <Save className="w-4 h-4" />
                   </motion.div>
-                  Menyimpan...
+                  Menyimpan…
                 </>
               ) : (
                 <>
                   <Check className="w-4 h-4" />
-                  Simpan Perubahan
+                  Simpan perubahan
                 </>
               )}
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.97 }}
               onClick={() => setShowEditProfile(false)}
-              className="btn-ghost flex items-center justify-center gap-2 text-sm"
+              className="btn-ghost flex items-center justify-center gap-2 text-sm py-2.5"
             >
               Batal
             </motion.button>

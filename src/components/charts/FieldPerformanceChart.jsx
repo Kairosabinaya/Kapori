@@ -5,11 +5,11 @@ import {
 } from 'recharts'
 import { generateChartData } from '../../data'
 
-const CustomTooltip = ({ active, payload, label }) => {
+const CustomTooltip = ({ active, payload, label, isHourly }) => {
   if (!active || !payload?.length) return null
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-3 text-sm">
-      <p className="font-semibold text-gray-700 mb-1">Hari ke-{label}</p>
+      <p className="font-semibold text-gray-700 mb-1">{isHourly ? `Pukul ${label}` : `Hari ke-${label}`}</p>
       {payload.map((item, i) => (
         <p key={i} className="flex items-center gap-2" style={{ color: item.color }}>
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
@@ -22,17 +22,18 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function FieldPerformanceChart({ farm = 'Semua Farm', time = 'Hari Ini' }) {
   const data = useMemo(() => generateChartData(farm, time), [farm, time])
+  const isHourly = time === 'Hari Ini'
 
-  const periodLabel = time === 'Hari Ini' ? '24 jam terakhir' :
+  const periodLabel = isHourly ? '24 jam terakhir' :
     time === '7 Hari Terakhir' ? '7 hari terakhir' : '30 hari terakhir'
 
   return (
-    <div className="card p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-base font-bold text-gray-800">Analitik Performa Lahan</h3>
+    <div className="card p-4 md:p-5">
+      <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+        <h3 className="text-base font-bold text-gray-800">Analitik performa lahan</h3>
         <span className="text-xs text-gray-400">{periodLabel} · {farm}</span>
       </div>
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height={260}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis
@@ -46,7 +47,7 @@ export default function FieldPerformanceChart({ farm = 'Semua Farm', time = 'Har
             tickLine={false}
             axisLine={false}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip isHourly={isHourly} />} />
           <Legend
             align="right"
             verticalAlign="top"

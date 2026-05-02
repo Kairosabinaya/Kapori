@@ -132,7 +132,7 @@ export const alertsData = [
   {
     id: 3, tipe: 'info',
     judul: 'Pembaruan Selesai',
-    pesan: 'Firmware v2.4 berhasil diterapkan ke semua node.',
+    pesan: 'Firmware v2.4 diterapkan ke semua node.',
     lahan: 'Sistem', waktu: '2 jam lalu',
   },
   {

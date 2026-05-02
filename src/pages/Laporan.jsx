@@ -9,6 +9,7 @@ import clsx from 'clsx'
 import { notify } from '../lib/notify'
 import Modal from '../components/ui/Modal'
 import { getFilteredReports } from '../data'
+import { downloadReport } from '../lib/downloads'
 
 const reportTypes = ['Performa Bulanan', 'Metrik Tanah', 'Log Irigasi', 'Ringkasan Harian']
 const lahanOptions = ['Semua Lahan', 'Lahan Utama', 'Lahan Selatan', 'Lahan Barat']
@@ -29,6 +30,17 @@ function formatDateID(iso) {
   if (!iso) return ''
   const d = new Date(iso)
   return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+// Parse the report.nama to extract jenisLaporan + lahan if not stored explicitly
+function inferReportType(nama) {
+  for (const t of reportTypes) {
+    if (nama.toLowerCase().includes(t.toLowerCase())) return t
+  }
+  if (nama.toLowerCase().includes('metrik tanah')) return 'Metrik Tanah'
+  if (nama.toLowerCase().includes('irigasi')) return 'Log Irigasi'
+  if (nama.toLowerCase().includes('performa')) return 'Performa Bulanan'
+  return 'Ringkasan Harian'
 }
 
 export default function Laporan() {
@@ -81,20 +93,35 @@ export default function Laporan() {
         format,
         lahan: lahanFilter,
         periode: periodeLabel,
+        jenisLaporan,
       }
       setExtraReports(prev => [newReport, ...prev])
       setIsCreating(false)
-      notify.success('Laporan dibuat')
+      notify.success(`Laporan dibuat — siap diunduh`)
     }, 1500)
   }
 
-  const handleDownload = (id) => {
-    setDownloadingId(id)
+  const handleDownload = (report) => {
+    setDownloadingId(report.id)
+    // Build full report payload (some legacy reports lack jenisLaporan field)
+    const payload = {
+      ...report,
+      jenisLaporan: report.jenisLaporan || inferReportType(report.nama),
+      periode: report.periode || '30 Hari Terakhir',
+      lahan: report.lahan || 'Semua Lahan',
+    }
     setTimeout(() => {
-      setDownloadingId(null)
-      setDownloadedIds(prev => [...prev, id])
-      notify.success('File diunduh')
-    }, 1200)
+      try {
+        downloadReport(payload)
+        setDownloadingId(null)
+        setDownloadedIds(prev => [...prev, report.id])
+        notify.success(`File ${payload.format} terunduh`)
+      } catch (err) {
+        setDownloadingId(null)
+        notify.error('Gagal membuat file unduhan')
+        console.error(err)
+      }
+    }, 800)
   }
 
   const handleDelete = (id) => {
@@ -123,7 +150,7 @@ export default function Laporan() {
             <select
               value={jenisLaporan}
               onChange={e => setJenisLaporan(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kapori-500 focus:border-transparent bg-white"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-kapori-500 focus:border-transparent bg-white"
             >
               {reportTypes.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
@@ -134,7 +161,7 @@ export default function Laporan() {
             <select
               value={lahanFilter}
               onChange={e => setLahanFilter(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kapori-500 focus:border-transparent bg-white"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-kapori-500 focus:border-transparent bg-white"
             >
               {lahanOptions.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
@@ -216,7 +243,7 @@ export default function Laporan() {
             onClick={handleCreateReport}
             disabled={!canCreate}
             className={clsx(
-              'btn-primary w-full flex items-center justify-center gap-2 text-sm',
+              'btn-primary w-full flex items-center justify-center gap-2 text-sm py-2.5',
               !canCreate && 'opacity-60 cursor-not-allowed'
             )}
           >
@@ -275,12 +302,12 @@ export default function Laporan() {
                     </motion.button>
                     <motion.button
                       whileTap={{ scale: 0.97 }}
-                      onClick={() => handleDownload(report.id)}
-                      disabled={isDownloading || isDownloaded}
+                      onClick={() => handleDownload(report)}
+                      disabled={isDownloading}
                       className={clsx(
                         'text-xs px-3 py-2 rounded-lg flex items-center gap-1.5 font-medium transition-colors',
                         isDownloaded
-                          ? 'bg-green-50 text-green-600 border border-green-200 cursor-default'
+                          ? 'bg-green-50 text-green-600 border border-green-200'
                           : isDownloading
                             ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-wait'
                             : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
@@ -380,8 +407,8 @@ export default function Laporan() {
             </div>
             <motion.button
               whileTap={{ scale: 0.97 }}
-              onClick={() => { handleDownload(previewReport.id); setPreviewReport(null) }}
-              className="btn-primary w-full flex items-center justify-center gap-2 text-sm"
+              onClick={() => { handleDownload(previewReport); setPreviewReport(null) }}
+              className="btn-primary w-full flex items-center justify-center gap-2 text-sm py-2.5"
             >
               <Download className="w-4 h-4" /> Unduh untuk melihat
             </motion.button>

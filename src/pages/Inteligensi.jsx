@@ -3,28 +3,50 @@ import { useOutletContext } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   BrainCircuit, CheckCircle, X, AlertTriangle,
-  AlertOctagon, Clock, Shield, MapPin
+  AlertOctagon, Clock, Shield, MapPin, Droplets, Sprout,
+  Beaker, FlaskConical, TrendingUp, Info
 } from 'lucide-react'
 import clsx from 'clsx'
 import { notify } from '../lib/notify'
 import Modal from '../components/ui/Modal'
-import { getFilteredRekomendasis, getFilteredRisks, getFilteredDecisionHistory } from '../data'
+import { getFilteredLahanData, getFilteredDecisionHistory } from '../data'
+import { generateRecommendations, generateRisks } from '../lib/domain'
+
+const recoIcon = {
+  irrigation: Droplets,
+  fertilizer: Sprout,
+  liming: Beaker,
+  acidify: FlaskConical,
+  disease_prevent: Shield,
+  mulching: TrendingUp,
+}
+
+const urgencyStyle = {
+  high:   { bg: 'bg-red-50',   text: 'text-red-700',   border: 'border-l-red-400',   label: 'Mendesak' },
+  medium: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-l-amber-400', label: 'Disarankan' },
+  low:    { bg: 'bg-kapori-50', text: 'text-kapori-700', border: 'border-l-kapori-400', label: 'Opsional' },
+}
 
 export default function Inteligensi() {
   const { filters } = useOutletContext()
-  const { selectedFarm } = filters
+  const { selectedFarm, selectedTime } = filters
 
-  const rekomendasis = useMemo(() => getFilteredRekomendasis(selectedFarm), [selectedFarm])
-  const risks = useMemo(() => getFilteredRisks(selectedFarm), [selectedFarm])
+  const lahanList = useMemo(
+    () => getFilteredLahanData(selectedFarm, selectedTime),
+    [selectedFarm, selectedTime]
+  )
+  const rekomendasis = useMemo(() => generateRecommendations(lahanList), [lahanList])
+  const risks = useMemo(() => generateRisks(lahanList), [lahanList])
   const decisionHistory = useMemo(() => getFilteredDecisionHistory(selectedFarm), [selectedFarm])
 
   const [appliedRekoms, setAppliedRekoms] = useState([])
   const [dismissedRekoms, setDismissedRekoms] = useState([])
   const [riskDetail, setRiskDetail] = useState(null)
+  const [recoDetail, setRecoDetail] = useState(null)
 
-  const handleApplyRekom = (id) => {
-    setAppliedRekoms(prev => [...prev, id])
-    notify.success('Rekomendasi diterapkan')
+  const handleApplyRekom = (rekom) => {
+    setAppliedRekoms(prev => [...prev, rekom.id])
+    notify.success(`Diterapkan: ${rekom.judul} (${rekom.lahan})`)
   }
 
   const handleDismissRekom = (id) => {
@@ -35,13 +57,28 @@ export default function Inteligensi() {
 
   return (
     <motion.div
-      key={selectedFarm}
+      key={`${selectedFarm}-${selectedTime}`}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
       className="space-y-6 md:space-y-8"
     >
+      {/* Section header explanation */}
+      <div className="card p-4 bg-kapori-50 border border-kapori-100 flex items-start gap-3">
+        <div className="p-2 bg-white rounded-lg shrink-0">
+          <BrainCircuit className="w-5 h-5 text-kapori-600" />
+        </div>
+        <div className="text-sm text-gray-600 leading-relaxed">
+          <p className="font-semibold text-gray-800 mb-0.5">Bagaimana KAPORI menghasilkan rekomendasi</p>
+          <p>
+            Mesin AI memproses pembacaan real-time dari {lahanList.reduce((s, l) => s + l.sensorCount, 0)} sensor IoT
+            (kelembaban, suhu, pH, EC, NPK, kelembaban udara), membandingkan dengan ambang FAO/agronomi,
+            lalu menghitung risiko stres air, risiko penyakit, kebutuhan irigasi, dan dosis pupuk presisi.
+          </p>
+        </div>
+      </div>
+
       {/* Section 1: Rekomendasi Aktif */}
       <div>
         <div className="flex items-center gap-2 mb-4">
@@ -54,6 +91,8 @@ export default function Inteligensi() {
             <AnimatePresence>
               {visibleRekoms.map(rekom => {
                 const isApplied = appliedRekoms.includes(rekom.id)
+                const Icon = recoIcon[rekom.type] || BrainCircuit
+                const u = urgencyStyle[rekom.urgency] || urgencyStyle.low
                 return (
                   <motion.div
                     key={rekom.id}
@@ -61,50 +100,76 @@ export default function Inteligensi() {
                     exit={{ opacity: 0, y: -20, height: 0 }}
                     transition={{ duration: 0.3 }}
                     className={clsx(
-                      'card p-5 border-l-4 border-l-kapori-500 transition-all',
+                      'card p-5 border-l-4 transition-all',
+                      u.border,
                       isApplied && 'bg-kapori-50 border-kapori-300'
                     )}
                   >
                     <div className="flex items-start justify-between gap-2 mb-3">
-                      <h3 className="font-bold text-gray-800 min-w-0">{rekom.judul}</h3>
-                      <span className="badge bg-kapori-100 text-kapori-700 shrink-0">{rekom.match}% match</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className={clsx('p-1.5 rounded-lg', u.bg)}>
+                          <Icon className={clsx('w-4 h-4', u.text)} />
+                        </div>
+                        <h3 className="font-bold text-gray-800 truncate">{rekom.judul}</h3>
+                      </div>
+                      <span className={clsx('badge shrink-0', u.bg, u.text)}>{u.label}</span>
                     </div>
-                    <div className="space-y-2 mb-4">
-                      <p className="text-sm text-gray-500">
-                        <span className="font-medium text-gray-600">Lahan:</span> {rekom.lahan}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        <span className="font-medium text-gray-600">Aksi:</span> {rekom.aksi}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        <span className="font-medium text-gray-600">Dampak:</span> {rekom.dampak}
-                      </p>
+
+                    <div className="space-y-1.5 mb-3 text-sm">
+                      <div className="flex gap-2">
+                        <span className="text-gray-500 w-16 shrink-0">Lahan</span>
+                        <span className="text-gray-800 font-medium">{rekom.lahan}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-gray-500 w-16 shrink-0">Aksi</span>
+                        <span className="text-gray-800">{rekom.aksi}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-gray-500 w-16 shrink-0">Dampak</span>
+                        <span className="text-gray-800">{rekom.dampak}</span>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <motion.button
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => handleApplyRekom(rekom.id)}
-                        disabled={isApplied}
-                        className={clsx(
-                          'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                          isApplied
-                            ? 'bg-kapori-200 text-kapori-700 cursor-default'
-                            : 'bg-kapori-600 text-white hover:bg-kapori-700'
-                        )}
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        {isApplied ? 'Diterapkan' : 'Terapkan'}
-                      </motion.button>
-                      {!isApplied && (
+
+                    <div className="flex items-center gap-2 mb-3 text-xs text-gray-500 bg-gray-50 rounded-lg px-2.5 py-2">
+                      <Info className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                      <span className="leading-snug">{rekom.reason}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-gray-400">Confidence {rekom.match}%</span>
+                      <div className="flex flex-wrap gap-2">
                         <motion.button
                           whileTap={{ scale: 0.97 }}
-                          onClick={() => handleDismissRekom(rekom.id)}
-                          className="btn-ghost flex items-center gap-1.5 text-sm py-2"
+                          onClick={() => setRecoDetail(rekom)}
+                          className="text-xs text-kapori-600 hover:text-kapori-700 font-medium px-2 py-1.5"
                         >
-                          <X className="w-4 h-4" />
-                          Abaikan
+                          Detail
                         </motion.button>
-                      )}
+                        {!isApplied && (
+                          <motion.button
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => handleDismissRekom(rekom.id)}
+                            className="btn-ghost flex items-center gap-1.5 text-xs py-1.5 px-3"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            Abaikan
+                          </motion.button>
+                        )}
+                        <motion.button
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => handleApplyRekom(rekom)}
+                          disabled={isApplied}
+                          className={clsx(
+                            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                            isApplied
+                              ? 'bg-kapori-200 text-kapori-700 cursor-default'
+                              : 'bg-kapori-600 text-white hover:bg-kapori-700'
+                          )}
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          {isApplied ? 'Diterapkan' : 'Terapkan'}
+                        </motion.button>
+                      </div>
                     </div>
                   </motion.div>
                 )
@@ -112,8 +177,10 @@ export default function Inteligensi() {
             </AnimatePresence>
           </div>
         ) : (
-          <div className="card p-8 text-center text-sm text-gray-400">
-            Tidak ada rekomendasi aktif untuk {selectedFarm}.
+          <div className="card p-8 text-center">
+            <CheckCircle className="w-10 h-10 text-green-300 mx-auto mb-3" />
+            <p className="text-sm text-gray-500">Tidak ada rekomendasi aktif untuk {selectedFarm}.</p>
+            <p className="text-xs text-gray-400 mt-1">Semua parameter tanah berada dalam batas optimal.</p>
           </div>
         )}
       </div>
@@ -144,19 +211,22 @@ export default function Inteligensi() {
                   ) : (
                     <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
                   )}
-                  <h3 className={clsx(
-                    'font-bold min-w-0',
-                    risk.tipe === 'critical' ? 'text-red-700' : 'text-amber-700'
-                  )}>
-                    {risk.nama}
-                  </h3>
+                  <div className="min-w-0 flex-1">
+                    <h3 className={clsx(
+                      'font-bold',
+                      risk.tipe === 'critical' ? 'text-red-700' : 'text-amber-700'
+                    )}>
+                      {risk.nama}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Skor risiko {risk.score}%</p>
+                  </div>
                 </div>
                 <div className="space-y-1.5 mb-4 ml-8">
                   <p className="text-sm text-gray-600 flex items-center gap-1.5">
                     <MapPin className="w-3.5 h-3.5 shrink-0" /> {risk.lahan}
                   </p>
                   <p className="text-sm text-gray-600 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 shrink-0" /> Waktu dampak: {risk.waktuDampak}
+                    <Clock className="w-3.5 h-3.5 shrink-0" /> Estimasi dampak: {risk.waktuDampak}
                   </p>
                   <p className="text-sm text-gray-600 flex items-start gap-1.5">
                     <Shield className="w-3.5 h-3.5 shrink-0 mt-0.5" /> Pencegahan: {risk.pencegahan}
@@ -167,14 +237,16 @@ export default function Inteligensi() {
                   onClick={() => setRiskDetail(risk)}
                   className="btn-ghost text-sm w-full py-2"
                 >
-                  Lihat detail
+                  Lihat detail risiko
                 </motion.button>
               </motion.div>
             ))}
           </div>
         ) : (
-          <div className="card p-8 text-center text-sm text-gray-400">
-            Tidak ada risiko terdeteksi untuk {selectedFarm}.
+          <div className="card p-8 text-center">
+            <Shield className="w-10 h-10 text-green-300 mx-auto mb-3" />
+            <p className="text-sm text-gray-500">Tidak ada risiko terdeteksi untuk {selectedFarm}.</p>
+            <p className="text-xs text-gray-400 mt-1">Pemantauan terus berjalan setiap menit.</p>
           </div>
         )}
       </div>
@@ -202,8 +274,15 @@ export default function Inteligensi() {
                       item.status === 'success' ? 'bg-green-500 ring-green-200' : 'bg-gray-400 ring-gray-200'
                     )} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-400 mb-0.5">{item.waktu}</p>
-                      <p className="text-sm font-semibold text-gray-800">{item.aksi}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-xs text-gray-400">{item.waktu}</p>
+                        {item.applier && (
+                          <span className="text-[10px] text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
+                            oleh {item.applier}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-semibold text-gray-800 mt-0.5">{item.aksi}</p>
                       <p className="text-sm text-gray-500 mt-0.5">{item.hasil}</p>
                     </div>
                   </motion.div>
@@ -242,6 +321,7 @@ export default function Inteligensi() {
                 )}>
                   {riskDetail.tipe === 'critical' ? 'Risiko kritis' : 'Peringatan'}
                 </span>
+                <span className="ml-auto text-xs text-gray-500">Skor {riskDetail.score}%</span>
               </div>
               <p className="text-sm text-gray-700 leading-relaxed">{riskDetail.detail}</p>
             </div>
@@ -251,7 +331,7 @@ export default function Inteligensi() {
                 <p className="text-sm font-semibold text-gray-700">{riskDetail.lahan}</p>
               </div>
               <div className="bg-gray-50 rounded-xl p-3">
-                <p className="text-xs text-gray-400">Waktu dampak</p>
+                <p className="text-xs text-gray-400">Estimasi dampak</p>
                 <p className="text-sm font-semibold text-gray-700">{riskDetail.waktuDampak}</p>
               </div>
               <div className="bg-gray-50 rounded-xl p-3 sm:col-span-2">
@@ -259,6 +339,55 @@ export default function Inteligensi() {
                 <p className="text-sm font-semibold text-gray-700">{riskDetail.pencegahan}</p>
               </div>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Recommendation Detail Modal */}
+      <Modal
+        isOpen={!!recoDetail}
+        onClose={() => setRecoDetail(null)}
+        title={recoDetail?.judul || ''}
+      >
+        {recoDetail && (
+          <div className="space-y-4">
+            <div className={clsx('p-4 rounded-xl', urgencyStyle[recoDetail.urgency]?.bg || 'bg-gray-50')}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className={clsx(
+                  'badge',
+                  urgencyStyle[recoDetail.urgency]?.bg,
+                  urgencyStyle[recoDetail.urgency]?.text
+                )}>
+                  {urgencyStyle[recoDetail.urgency]?.label}
+                </span>
+                <span className="text-xs text-gray-500 ml-auto">Confidence {recoDetail.match}%</span>
+              </div>
+              <p className="text-sm text-gray-700 leading-relaxed">{recoDetail.reason}</p>
+            </div>
+            <div className="space-y-2">
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-xs text-gray-400 mb-1">Lokasi</p>
+                <p className="text-sm font-semibold text-gray-700">{recoDetail.lahan}</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-xs text-gray-400 mb-1">Aksi yang disarankan</p>
+                <p className="text-sm font-semibold text-gray-700">{recoDetail.aksi}</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-xs text-gray-400 mb-1">Estimasi dampak</p>
+                <p className="text-sm font-semibold text-gray-700">{recoDetail.dampak}</p>
+              </div>
+            </div>
+            {!appliedRekoms.includes(recoDetail.id) && (
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={() => { handleApplyRekom(recoDetail); setRecoDetail(null) }}
+                className="btn-primary w-full flex items-center justify-center gap-2 text-sm py-2.5"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Terapkan rekomendasi
+              </motion.button>
+            )}
           </div>
         )}
       </Modal>

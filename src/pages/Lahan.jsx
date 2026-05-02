@@ -4,19 +4,23 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { MapContainer, TileLayer, Polygon, Tooltip, ZoomControl, CircleMarker } from 'react-leaflet'
 import {
   X, Droplets, Thermometer, TestTube, Zap, Leaf, ShieldCheck,
-  Navigation, Download, RefreshCw, Compass, Radio
+  Navigation, Download, RefreshCw, Compass, Radio, CloudRain, AlertTriangle
 } from 'lucide-react'
 import clsx from 'clsx'
 import { notify } from '../lib/notify'
 import { useMediaQuery } from '../lib/useMediaQuery'
 import { getFilteredLahanData, farmToLahan, sensors } from '../data'
+import {
+  classifyMetric, computeWaterStressRisk, computeDiseaseRisk,
+  computeIrrigationNeed, computeFertilizationNeed
+} from '../lib/domain'
+import { downloadLahanCSV } from '../lib/downloads'
 import ProgressBar from '../components/ui/ProgressBar'
 
 // Anchor — Nganjuk, Jawa Timur agricultural plain
 const FARM_CENTER = [-7.5915, 111.9111]
-const PAN_RADIUS = 0.012 // ~1.3 km radius lock
+const PAN_RADIUS = 0.012
 
-// Polygon corners — user-plotted via geojson.io
 const lahanPolygons = [
   {
     id: 'utama', lahan: 'Lahan Utama',
@@ -58,7 +62,6 @@ const lahanPolygons = [
   },
 ]
 
-// Map lahan name -> color (for sensor dots)
 const lahanColor = lahanPolygons.reduce((acc, p) => {
   acc[p.lahan] = p.color
   return acc
@@ -67,11 +70,19 @@ const lahanColor = lahanPolygons.reduce((acc, p) => {
 const metricIcons = [
   { key: 'kelembaban', icon: Droplets, label: 'Kelembaban', unit: '%', color: 'blue', max: 100 },
   { key: 'suhu', icon: Thermometer, label: 'Suhu', unit: '°C', color: 'amber', max: 50 },
+  { key: 'airHumidity', icon: CloudRain, label: 'Kelembaban udara', unit: '%', color: 'blue', max: 100 },
   { key: 'ph', icon: TestTube, label: 'pH Tanah', unit: 'pH', color: 'green', max: 14 },
   { key: 'ec', icon: Zap, label: 'Konduktivitas', unit: 'dS/m', color: 'blue', max: 3 },
   { key: 'npk', icon: Leaf, label: 'Indeks NPK', unit: 'idx', color: 'kapori', max: 100 },
-  { key: 'sistemHealth', icon: ShieldCheck, label: 'Kesehatan', unit: '%', color: 'kapori', max: 100 },
+  { key: 'sistemHealth', icon: ShieldCheck, label: 'Kesehatan sistem', unit: '%', color: 'kapori', max: 100 },
 ]
+
+function classBg(status) {
+  return status === 'optimal' ? 'text-green-600'
+    : status === 'warning' ? 'text-amber-600'
+    : status === 'critical' ? 'text-red-600'
+    : 'text-gray-700'
+}
 
 export default function Lahan() {
   const { filters } = useOutletContext()
@@ -89,28 +100,45 @@ export default function Lahan() {
 
   const [selectedLahan, setSelectedLahan] = useState(null)
   const [irrigating, setIrrigating] = useState(null)
+  const [refreshing, setRefreshing] = useState(null)
 
   const lahanData = selectedLahan
     ? filteredLahans.find(l => l.id === selectedLahan)
     : null
 
+  // Derived insights for the selected lahan
+  const insights = useMemo(() => {
+    if (!lahanData) return null
+    return {
+      waterStress: computeWaterStressRisk(lahanData),
+      diseaseRisk: computeDiseaseRisk(lahanData),
+      irrigationNeed: computeIrrigationNeed(lahanData),
+      fertilizationNeed: computeFertilizationNeed(lahanData),
+    }
+  }, [lahanData])
+
   const handleIrigate = (lahanNama) => {
     setIrrigating(lahanNama)
-    notify.info(`Memulai irigasi untuk ${lahanNama}…`)
+    notify.info(`Membuka katup relay irigasi ${lahanNama}…`)
     setTimeout(() => {
       setIrrigating(null)
-      notify.success(`Irigasi ${lahanNama} dimulai`)
+      notify.success(`Irigasi ${lahanNama} dimulai (katup terbuka)`)
     }, 2000)
   }
 
-  const handleExportData = (lahanNama) => {
-    notify.info(`Mengekspor data ${lahanNama}…`)
-    setTimeout(() => notify.success(`Data ${lahanNama} diekspor (CSV)`), 1500)
+  const handleExportData = (lahan) => {
+    const lahanSensors = sensors.filter(s => s.lahan === lahan.nama)
+    downloadLahanCSV(lahan, lahanSensors)
+    notify.success(`Data ${lahan.nama} diunduh (CSV)`)
   }
 
   const handleRefreshData = (lahanNama) => {
-    notify.info(`Memperbarui data sensor ${lahanNama}…`)
-    setTimeout(() => notify.success(`Data sensor ${lahanNama} diperbarui`), 1000)
+    setRefreshing(lahanNama)
+    notify.info(`Memperbarui pembacaan sensor ${lahanNama}…`)
+    setTimeout(() => {
+      setRefreshing(null)
+      notify.success(`Pembacaan sensor ${lahanNama} diperbarui`)
+    }, 1200)
   }
 
   const panelInitial = isMobile ? { y: '100%' } : { x: 320 }
@@ -151,7 +179,6 @@ export default function Lahan() {
         />
         <ZoomControl position="topright" />
 
-        {/* Lahan polygons */}
         {lahanPolygons.map(poly => {
           const isVisible = visibleLahanNames.includes(poly.lahan)
           const isSelected = selectedLahan === poly.id
@@ -180,12 +207,7 @@ export default function Lahan() {
               }}
             >
               {isVisible && (
-                <Tooltip
-                  permanent
-                  direction="center"
-                  className="lahan-label"
-                  opacity={1}
-                >
+                <Tooltip permanent direction="center" className="lahan-label" opacity={1}>
                   Lahan {poly.lahan.replace('Lahan ', '')}
                 </Tooltip>
               )}
@@ -193,73 +215,64 @@ export default function Lahan() {
           )
         })}
 
-        {/* Sensor markers */}
         {sensors.map(sensor => {
           const isVisible = visibleLahanNames.includes(sensor.lahan)
           if (!isVisible) return null
           const color = lahanColor[sensor.lahan] || '#2D6A4F'
+          const isOffline = sensor.status === 'offline'
+          const isWarning = sensor.status === 'peringatan'
           return (
             <CircleMarker
               key={sensor.id}
               center={sensor.position}
-              radius={7}
+              radius={isOffline ? 5 : 7}
               pathOptions={{
                 color: 'white',
                 weight: 2.5,
-                fillColor: color,
-                fillOpacity: 1,
+                fillColor: isOffline ? '#9CA3AF' : color,
+                fillOpacity: isOffline ? 0.6 : 1,
+                dashArray: isOffline ? '3 3' : null,
                 className: 'sensor-marker',
               }}
               eventHandlers={{
                 mouseover: (e) => e.target.setRadius(9),
-                mouseout: (e) => e.target.setRadius(7),
+                mouseout: (e) => e.target.setRadius(isOffline ? 5 : 7),
               }}
             >
-              <Tooltip
-                direction="top"
-                offset={[0, -8]}
-                opacity={1}
-                className="sensor-tooltip"
-              >
+              <Tooltip direction="top" offset={[0, -8]} opacity={1} className="sensor-tooltip">
                 <div>
                   <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-gray-100">
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: color }}
+                      style={{ backgroundColor: isOffline ? '#9CA3AF' : color }}
                     />
                     <div className="min-w-0 flex-1 leading-tight">
                       <p className="text-[13px] font-bold text-gray-800">{sensor.nama}</p>
-                      <p className="text-[10px] text-gray-400 mt-1">{sensor.id} · {sensor.lahan}</p>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        {sensor.id} · {sensor.lahan}
+                        {isOffline && <span className="ml-1 text-red-500 font-semibold">· Offline</span>}
+                        {isWarning && !isOffline && <span className="ml-1 text-amber-600 font-semibold">· Perhatian</span>}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex justify-between items-baseline gap-4">
-                      <span className="text-gray-500">Kelembaban</span>
-                      <span className="font-semibold text-gray-800 tabular-nums">{sensor.kelembaban}%</span>
+
+                  {!isOffline ? (
+                    <div className="flex flex-col gap-1.5">
+                      <SensorRow label="Kelembaban tanah" value={`${sensor.kelembaban}%`} status={classifyMetric(sensor.kelembaban, 'kelembaban')} />
+                      <SensorRow label="Suhu" value={`${sensor.suhu}°C`} status={classifyMetric(sensor.suhu, 'suhu')} />
+                      <SensorRow label="Kelembaban udara" value={`${sensor.airHumidity}%`} status={classifyMetric(sensor.airHumidity, 'airHumidity')} />
+                      <SensorRow label="pH tanah" value={sensor.ph} status={classifyMetric(sensor.ph, 'ph')} />
+                      <SensorRow label="Konduktivitas" value={`${sensor.ec} dS/m`} status={classifyMetric(sensor.ec, 'ec')} />
+                      <SensorRow label="Indeks NPK" value={sensor.npk} status={classifyMetric(sensor.npk, 'npk')} />
                     </div>
-                    <div className="flex justify-between items-baseline gap-4">
-                      <span className="text-gray-500">Suhu</span>
-                      <span className="font-semibold text-gray-800 tabular-nums">{sensor.suhu}°C</span>
-                    </div>
-                    <div className="flex justify-between items-baseline gap-4">
-                      <span className="text-gray-500">pH tanah</span>
-                      <span className="font-semibold text-gray-800 tabular-nums">{sensor.ph}</span>
-                    </div>
-                    <div className="flex justify-between items-baseline gap-4">
-                      <span className="text-gray-500">Konduktivitas</span>
-                      <span className="font-semibold text-gray-800 tabular-nums">{sensor.ec} dS/m</span>
-                    </div>
-                    <div className="flex justify-between items-baseline gap-4">
-                      <span className="text-gray-500">Indeks NPK</span>
-                      <span className="font-semibold text-gray-800 tabular-nums">{sensor.npk}</span>
-                    </div>
-                    <div className="flex justify-between items-baseline gap-4">
-                      <span className="text-gray-500">Kesehatan</span>
-                      <span className="font-semibold text-gray-800 tabular-nums">{sensor.sistemHealth}%</span>
-                    </div>
-                  </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 italic py-2">
+                      Sensor offline. Pembacaan terakhir 4 jam lalu — diperlukan pengecekan lapangan.
+                    </p>
+                  )}
+
                   <p className="text-[10px] text-gray-400 pt-2.5 mt-2.5 border-t border-gray-100">
-                    Terakhir lapor: {sensor.lastReport} · cakupan ~100 m
+                    {sensor.lastReport} · cakupan ~100 m · sinyal {sensor.sinyal}% · baterai {sensor.baterai}%
                   </p>
                 </div>
               </Tooltip>
@@ -268,7 +281,6 @@ export default function Lahan() {
         })}
       </MapContainer>
 
-      {/* Compass / location label */}
       <div className="absolute top-3 left-3 z-[400] bg-white/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-md flex items-center gap-2 pointer-events-none">
         <Compass className="w-4 h-4 text-kapori-600" />
         <div className="leading-tight">
@@ -277,7 +289,6 @@ export default function Lahan() {
         </div>
       </div>
 
-      {/* Legend */}
       <div className="absolute bottom-6 left-3 z-[400] bg-white/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-md">
         <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Status Lahan</p>
         <div className="space-y-1">
@@ -290,11 +301,10 @@ export default function Lahan() {
         </div>
         <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-1.5 text-[10px] text-gray-500">
           <Radio className="w-3 h-3" />
-          <span>{sensors.length} titik sensor</span>
+          <span>{sensors.length} titik sensor IoT</span>
         </div>
       </div>
 
-      {/* Detail Panel + mobile backdrop */}
       <AnimatePresence>
         {lahanData && (
           <>
@@ -318,7 +328,7 @@ export default function Lahan() {
                 'bg-white shadow-xl overflow-y-auto',
                 isMobile
                   ? 'fixed bottom-0 left-0 right-0 max-h-[85vh] rounded-t-2xl z-40'
-                  : 'absolute top-0 right-0 h-full w-80 border-l border-gray-100 z-[500]'
+                  : 'absolute top-0 right-0 h-full w-[360px] border-l border-gray-100 z-[500]'
               )}
             >
               {isMobile && (
@@ -328,7 +338,7 @@ export default function Lahan() {
               )}
 
               <div className="p-5">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: lahanData.warna }} />
                     <h3 className="font-bold text-gray-800 truncate">{lahanData.nama}</h3>
@@ -342,7 +352,7 @@ export default function Lahan() {
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap mb-4">
+                <div className="flex items-center gap-2 flex-wrap mb-3">
                   <div className={clsx(
                     'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold',
                     lahanData.status === 'normal' && 'bg-green-100 text-green-700',
@@ -355,21 +365,47 @@ export default function Lahan() {
                       lahanData.status === 'perhatian' && 'bg-red-500',
                       lahanData.status === 'peringatan' && 'bg-amber-500',
                     )} />
-                    {lahanData.status === 'normal' ? 'Normal' :
-                     lahanData.status === 'perhatian' ? 'Perlu perhatian' : 'Peringatan'}
+                    {lahanData.status === 'normal' ? 'Normal'
+                      : lahanData.status === 'perhatian' ? 'Perlu perhatian' : 'Peringatan'}
                   </div>
                   <span className="badge bg-gray-100 text-gray-600 flex items-center gap-1">
                     <Radio className="w-3 h-3" />
-                    {lahanData.sensorCount} sensor · rata-rata
+                    {lahanData.sensorOnline}/{lahanData.sensorCount} sensor online
                   </span>
                 </div>
 
-                <p className="text-sm text-gray-500 mb-5">{lahanData.keterangan}</p>
+                <div className="space-y-1 text-xs text-gray-500 mb-4">
+                  <p><span className="text-gray-400">Komoditas:</span> <span className="text-gray-700 font-medium">{lahanData.komoditas}</span></p>
+                  <p><span className="text-gray-400">Luas:</span> <span className="text-gray-700 font-medium">{lahanData.luasHa} ha</span></p>
+                  <p><span className="text-gray-400">Sistem irigasi:</span> <span className="text-gray-700 font-medium">{lahanData.sistemIrigasi}</span></p>
+                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-3 mb-5">
+                <p className="text-sm text-gray-600 mb-5 bg-gray-50 rounded-xl p-3 leading-relaxed">{lahanData.keterangan}</p>
+
+                {/* Derived insights */}
+                {insights && (
+                  <div className="mb-5">
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                      Analitik AI
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <InsightTile label="Stres air" value={insights.waterStress} icon={AlertTriangle} />
+                      <InsightTile label="Risiko jamur" value={insights.diseaseRisk} icon={AlertTriangle} />
+                      <InsightTile label="Butuh irigasi" value={insights.irrigationNeed} icon={Droplets} variant="action" />
+                      <InsightTile label="Butuh pupuk" value={insights.fertilizationNeed} icon={Leaf} variant="action" />
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Pembacaan rata-rata
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2.5 mb-5">
                   {metricIcons.map(m => {
                     const Icon = m.icon
                     const val = lahanData[m.key]
+                    if (val == null) return null
+                    const status = classifyMetric(val, m.key)
                     return (
                       <div key={m.key} className="p-3 bg-gray-50 rounded-xl">
                         <div className="flex items-center justify-between mb-1.5">
@@ -377,7 +413,9 @@ export default function Lahan() {
                             <Icon className="w-4 h-4 text-gray-400" />
                             <span className="text-sm text-gray-600">{m.label}</span>
                           </div>
-                          <span className="text-sm font-bold text-gray-800">{val} {m.unit}</span>
+                          <span className={clsx('text-sm font-bold', classBg(status))}>
+                            {val} {m.unit}
+                          </span>
                         </div>
                         <ProgressBar value={val} max={m.max} color={m.color} />
                       </div>
@@ -396,25 +434,30 @@ export default function Lahan() {
                     )}
                   >
                     {irrigating === lahanData.nama ? (
-                      <><RefreshCw className="w-4 h-4 animate-spin" />Memulai irigasi…</>
+                      <><RefreshCw className="w-4 h-4 animate-spin" />Membuka katup…</>
                     ) : (
-                      <><Navigation className="w-4 h-4" />Mulai irigasi</>
+                      <><Navigation className="w-4 h-4" />Mulai irigasi presisi</>
                     )}
                   </motion.button>
                   <div className="flex gap-2">
                     <motion.button
                       whileTap={{ scale: 0.97 }}
-                      onClick={() => handleExportData(lahanData.nama)}
+                      onClick={() => handleExportData(lahanData)}
                       className="btn-ghost flex-1 flex items-center justify-center gap-1.5 text-sm py-2.5"
                     >
-                      <Download className="w-3.5 h-3.5" />Ekspor data
+                      <Download className="w-3.5 h-3.5" />Ekspor CSV
                     </motion.button>
                     <motion.button
                       whileTap={{ scale: 0.97 }}
                       onClick={() => handleRefreshData(lahanData.nama)}
-                      className="btn-ghost flex-1 flex items-center justify-center gap-1.5 text-sm py-2.5"
+                      disabled={refreshing === lahanData.nama}
+                      className={clsx(
+                        'btn-ghost flex-1 flex items-center justify-center gap-1.5 text-sm py-2.5',
+                        refreshing === lahanData.nama && 'opacity-70 cursor-wait'
+                      )}
                     >
-                      <RefreshCw className="w-3.5 h-3.5" />Refresh
+                      <RefreshCw className={clsx('w-3.5 h-3.5', refreshing === lahanData.nama && 'animate-spin')} />
+                      Refresh
                     </motion.button>
                   </div>
                 </div>
@@ -424,5 +467,58 @@ export default function Lahan() {
         )}
       </AnimatePresence>
     </motion.div>
+  )
+}
+
+function SensorRow({ label, value, status }) {
+  return (
+    <div className="flex justify-between items-baseline gap-4">
+      <span className="text-gray-500">{label}</span>
+      <span className={clsx(
+        'font-semibold tabular-nums flex items-center gap-1.5',
+        status === 'optimal' ? 'text-green-700'
+          : status === 'warning' ? 'text-amber-700'
+          : status === 'critical' ? 'text-red-700' : 'text-gray-800'
+      )}>
+        <span className={clsx(
+          'w-1.5 h-1.5 rounded-full inline-block',
+          status === 'optimal' ? 'bg-green-500'
+            : status === 'warning' ? 'bg-amber-500'
+            : status === 'critical' ? 'bg-red-500' : 'bg-gray-400'
+        )} />
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function InsightTile({ label, value, icon: Icon, variant }) {
+  // For risk variant: 0-30 green, 30-60 amber, 60+ red
+  // For action variant: 0 = green (none needed), 1-50 amber (some), 50+ red (urgent)
+  let tone = 'optimal'
+  if (variant === 'action') {
+    if (value === 0) tone = 'optimal'
+    else if (value < 50) tone = 'warning'
+    else tone = 'critical'
+  } else {
+    if (value < 30) tone = 'optimal'
+    else if (value < 60) tone = 'warning'
+    else tone = 'critical'
+  }
+
+  const toneStyle = {
+    optimal:  { bg: 'bg-green-50', text: 'text-green-700', icon: 'text-green-500' },
+    warning:  { bg: 'bg-amber-50', text: 'text-amber-700', icon: 'text-amber-500' },
+    critical: { bg: 'bg-red-50',   text: 'text-red-700',   icon: 'text-red-500' },
+  }[tone]
+
+  return (
+    <div className={clsx('rounded-xl p-2.5', toneStyle.bg)}>
+      <div className="flex items-center gap-1.5 mb-1">
+        <Icon className={clsx('w-3.5 h-3.5', toneStyle.icon)} />
+        <span className="text-[10px] text-gray-600">{label}</span>
+      </div>
+      <p className={clsx('text-lg font-bold', toneStyle.text)}>{value}%</p>
+    </div>
   )
 }

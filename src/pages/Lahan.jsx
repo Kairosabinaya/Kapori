@@ -10,8 +10,8 @@ import { getFilteredLahanData, farmToLahan } from '../data'
 import ProgressBar from '../components/ui/ProgressBar'
 
 // Anchor — Cikole / Lembang vegetable-farming area, ~1300 m elevation
-const FARM_CENTER = [-6.8133, 107.6498]
-const PAN_RADIUS = 0.0025 // ~280 m radius lock
+const FARM_CENTER = [-6.8133, 107.6514]
+const PAN_RADIUS = 0.0035 // ~390 m radius lock
 
 // Polygon corners drawn over visible field patches at z18
 const lahanPolygons = [
@@ -19,30 +19,30 @@ const lahanPolygons = [
     id: 'A', lahan: 'Lahan A',
     color: '#EF4444',
     coords: [
-      [-6.8121, 107.6481],
-      [-6.8120, 107.6494],
-      [-6.8129, 107.6495],
-      [-6.8130, 107.6482],
+      [-6.8115, 107.6490],
+      [-6.8115, 107.6506],
+      [-6.8123, 107.6506],
+      [-6.8123, 107.6490],
     ],
   },
   {
     id: 'B', lahan: 'Lahan B',
     color: '#22C55E',
     coords: [
-      [-6.8121, 107.6499],
-      [-6.8120, 107.6512],
-      [-6.8128, 107.6513],
-      [-6.8129, 107.6500],
+      [-6.8123, 107.6527],
+      [-6.8123, 107.6538],
+      [-6.8133, 107.6538],
+      [-6.8133, 107.6527],
     ],
   },
   {
     id: 'C', lahan: 'Lahan C',
     color: '#F59E0B',
     coords: [
-      [-6.8133, 107.6486],
-      [-6.8131, 107.6504],
-      [-6.8142, 107.6505],
-      [-6.8143, 107.6487],
+      [-6.8141, 107.6510],
+      [-6.8141, 107.6524],
+      [-6.8150, 107.6524],
+      [-6.8150, 107.6510],
     ],
   },
 ]

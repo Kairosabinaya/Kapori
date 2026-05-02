@@ -5,8 +5,8 @@ import {
   BrainCircuit, CheckCircle, X, AlertTriangle,
   AlertOctagon, Clock, Shield, MapPin
 } from 'lucide-react'
-import toast from 'react-hot-toast'
 import clsx from 'clsx'
+import { notify } from '../lib/notify'
 import Modal from '../components/ui/Modal'
 import { getFilteredRekomendasis, getFilteredRisks, getFilteredDecisionHistory } from '../data'
 
@@ -24,9 +24,7 @@ export default function Inteligensi() {
 
   const handleApplyRekom = (id) => {
     setAppliedRekoms(prev => [...prev, id])
-    toast('✓ Rekomendasi berhasil diterapkan', {
-      style: { background: '#fff', color: '#1B4332', borderLeft: '4px solid #2D6A4F' },
-    })
+    notify.success('Rekomendasi diterapkan')
   }
 
   const handleDismissRekom = (id) => {
@@ -42,17 +40,17 @@ export default function Inteligensi() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
-      className="space-y-8"
+      className="space-y-6 md:space-y-8"
     >
       {/* Section 1: Rekomendasi Aktif */}
       <div>
         <div className="flex items-center gap-2 mb-4">
           <BrainCircuit className="w-5 h-5 text-kapori-600" />
-          <h2 className="text-lg font-bold text-gray-800">Rekomendasi Aktif</h2>
+          <h2 className="text-lg font-bold text-gray-800">Rekomendasi aktif</h2>
           <span className="text-xs text-gray-400 ml-1">({visibleRekoms.length})</span>
         </div>
         {visibleRekoms.length > 0 ? (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <AnimatePresence>
               {visibleRekoms.map(rekom => {
                 const isApplied = appliedRekoms.includes(rekom.id)
@@ -67,9 +65,9 @@ export default function Inteligensi() {
                       isApplied && 'bg-kapori-50 border-kapori-300'
                     )}
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="font-bold text-gray-800">{rekom.judul}</h3>
-                      <span className="badge bg-kapori-100 text-kapori-700">{rekom.match}% Match</span>
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <h3 className="font-bold text-gray-800 min-w-0">{rekom.judul}</h3>
+                      <span className="badge bg-kapori-100 text-kapori-700 shrink-0">{rekom.match}% match</span>
                     </div>
                     <div className="space-y-2 mb-4">
                       <p className="text-sm text-gray-500">
@@ -82,26 +80,26 @@ export default function Inteligensi() {
                         <span className="font-medium text-gray-600">Dampak:</span> {rekom.dampak}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <motion.button
                         whileTap={{ scale: 0.97 }}
                         onClick={() => handleApplyRekom(rekom.id)}
                         disabled={isApplied}
                         className={clsx(
-                          'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                          'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                           isApplied
-                            ? 'bg-kapori-200 text-kapori-700 cursor-not-allowed'
+                            ? 'bg-kapori-200 text-kapori-700 cursor-default'
                             : 'bg-kapori-600 text-white hover:bg-kapori-700'
                         )}
                       >
                         <CheckCircle className="w-4 h-4" />
-                        {isApplied ? 'Diterapkan ✓' : 'Terapkan'}
+                        {isApplied ? 'Diterapkan' : 'Terapkan'}
                       </motion.button>
                       {!isApplied && (
                         <motion.button
                           whileTap={{ scale: 0.97 }}
                           onClick={() => handleDismissRekom(rekom.id)}
-                          className="btn-ghost flex items-center gap-1.5 text-sm py-1.5"
+                          className="btn-ghost flex items-center gap-1.5 text-sm py-2"
                         >
                           <X className="w-4 h-4" />
                           Abaikan
@@ -124,11 +122,11 @@ export default function Inteligensi() {
       <div>
         <div className="flex items-center gap-2 mb-4">
           <AlertTriangle className="w-5 h-5 text-amber-500" />
-          <h2 className="text-lg font-bold text-gray-800">Risiko Terdeteksi</h2>
+          <h2 className="text-lg font-bold text-gray-800">Risiko terdeteksi</h2>
           <span className="text-xs text-gray-400 ml-1">({risks.length})</span>
         </div>
         {risks.length > 0 ? (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {risks.map(risk => (
               <motion.div
                 key={risk.id}
@@ -142,36 +140,34 @@ export default function Inteligensi() {
               >
                 <div className="flex items-start gap-3 mb-3">
                   {risk.tipe === 'critical' ? (
-                    <AlertOctagon className="w-5 h-5 text-red-500 mt-0.5" />
+                    <AlertOctagon className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
                   ) : (
-                    <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
+                    <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
                   )}
-                  <div>
-                    <h3 className={clsx(
-                      'font-bold',
-                      risk.tipe === 'critical' ? 'text-red-700' : 'text-amber-700'
-                    )}>
-                      {risk.nama}
-                    </h3>
-                  </div>
+                  <h3 className={clsx(
+                    'font-bold min-w-0',
+                    risk.tipe === 'critical' ? 'text-red-700' : 'text-amber-700'
+                  )}>
+                    {risk.nama}
+                  </h3>
                 </div>
                 <div className="space-y-1.5 mb-4 ml-8">
                   <p className="text-sm text-gray-600 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5" /> {risk.lahan}
+                    <MapPin className="w-3.5 h-3.5 shrink-0" /> {risk.lahan}
                   </p>
                   <p className="text-sm text-gray-600 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" /> Waktu Dampak: {risk.waktuDampak}
+                    <Clock className="w-3.5 h-3.5 shrink-0" /> Waktu dampak: {risk.waktuDampak}
                   </p>
-                  <p className="text-sm text-gray-600 flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5" /> Pencegahan: {risk.pencegahan}
+                  <p className="text-sm text-gray-600 flex items-start gap-1.5">
+                    <Shield className="w-3.5 h-3.5 shrink-0 mt-0.5" /> Pencegahan: {risk.pencegahan}
                   </p>
                 </div>
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={() => setRiskDetail(risk)}
-                  className="btn-ghost text-sm w-full"
+                  className="btn-ghost text-sm w-full py-2"
                 >
-                  Lihat Detail
+                  Lihat detail
                 </motion.button>
               </motion.div>
             ))}
@@ -187,7 +183,7 @@ export default function Inteligensi() {
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Clock className="w-5 h-5 text-gray-400" />
-          <h2 className="text-lg font-bold text-gray-800">Riwayat Keputusan</h2>
+          <h2 className="text-lg font-bold text-gray-800">Riwayat keputusan</h2>
           <span className="text-xs text-gray-400 ml-1">({decisionHistory.length})</span>
         </div>
         {decisionHistory.length > 0 ? (
@@ -244,21 +240,21 @@ export default function Inteligensi() {
                   'font-semibold text-sm',
                   riskDetail.tipe === 'critical' ? 'text-red-700' : 'text-amber-700'
                 )}>
-                  {riskDetail.tipe === 'critical' ? 'Risiko Kritis' : 'Peringatan'}
+                  {riskDetail.tipe === 'critical' ? 'Risiko kritis' : 'Peringatan'}
                 </span>
               </div>
               <p className="text-sm text-gray-700 leading-relaxed">{riskDetail.detail}</p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-gray-400">Lokasi</p>
                 <p className="text-sm font-semibold text-gray-700">{riskDetail.lahan}</p>
               </div>
               <div className="bg-gray-50 rounded-xl p-3">
-                <p className="text-xs text-gray-400">Waktu Dampak</p>
+                <p className="text-xs text-gray-400">Waktu dampak</p>
                 <p className="text-sm font-semibold text-gray-700">{riskDetail.waktuDampak}</p>
               </div>
-              <div className="bg-gray-50 rounded-xl p-3 col-span-2">
+              <div className="bg-gray-50 rounded-xl p-3 sm:col-span-2">
                 <p className="text-xs text-gray-400">Pencegahan</p>
                 <p className="text-sm font-semibold text-gray-700">{riskDetail.pencegahan}</p>
               </div>

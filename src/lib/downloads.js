@@ -58,7 +58,7 @@ export function downloadCSV(filename, headers, rows) {
   saveFile(blob, filename)
 }
 
-// ─── Excel (SpreadsheetML 2003 XML — opens natively in Excel without lib) ───
+// ─── Excel (SpreadsheetML 2003 XML - opens natively in Excel without lib) ───
 function xmlEscape(v) {
   if (v == null) return ''
   return String(v)
@@ -170,7 +170,7 @@ export function downloadLahanCSV(lahan, lahanSensors) {
     'AVG', `Rata-rata ${lahan.nama}`,
     lahan.kelembaban, lahan.suhu, lahan.airHumidity,
     lahan.ph, lahan.ec, lahan.npk, lahan.sistemHealth,
-    '—', '—', lahan.status, '—',
+    '-', '-', lahan.status, '-',
   ])
   downloadCSV(`kapori-${lahan.id}-${todayStamp()}.csv`, headers, rows)
 }
@@ -185,9 +185,9 @@ export function downloadDeviceDiagnosticCSV(device, signalHistory) {
     ['Status', device.status],
     ['Sinyal (%)', device.sinyal],
     ['Baterai (%)', device.baterai],
-    ['Solar charge (W)', device.solarCharge ?? '—'],
+    ['Solar charge (W)', device.solarCharge ?? '-'],
     ['Terakhir lapor', device.lastReport],
-    ['Error', device.error || '—'],
+    ['Error', device.error || '-'],
   ]
   if (device.tipe === 'sensor') {
     rows.push([])
@@ -442,7 +442,7 @@ export function downloadReport(report) {
 // Export combined alerts CSV (for any "export alerts" button)
 export function downloadAlertsCSV() {
   const headers = ['Tipe', 'Judul', 'Pesan', 'Lahan', 'Kategori', 'Waktu']
-  const rows = alertsData.map(a => [a.tipe, a.judul, a.pesan, a.lahan, a.kategori || '—', a.waktu])
+  const rows = alertsData.map(a => [a.tipe, a.judul, a.pesan, a.lahan, a.kategori || '-', a.waktu])
   downloadCSV(`kapori-peringatan-${todayStamp()}.csv`, headers, rows)
 }
 
@@ -450,7 +450,7 @@ export function downloadAllDevicesCSV() {
   const headers = ['ID', 'Nama', 'Tipe', 'Lahan', 'Status', 'Sinyal (%)', 'Baterai (%)', 'Solar (W)', 'Terakhir lapor', 'Error']
   const rows = getAllDevices().map(d => [
     d.id, d.nama, d.tipe, d.lahan, d.status,
-    d.sinyal, d.baterai, d.solarCharge ?? '—', d.lastReport, d.error || '—',
+    d.sinyal, d.baterai, d.solarCharge ?? '-', d.lastReport, d.error || '-',
   ])
   downloadCSV(`kapori-perangkat-${todayStamp()}.csv`, headers, rows)
 }

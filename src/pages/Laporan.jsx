@@ -14,10 +14,12 @@ import { downloadReport } from '../lib/downloads'
 const reportTypes = ['Performa Bulanan', 'Metrik Tanah', 'Log Irigasi', 'Ringkasan Harian']
 const lahanOptions = ['Semua Lahan', 'Lahan Utama', 'Lahan Selatan', 'Lahan Barat']
 const formatOptions = ['PDF', 'CSV', 'Excel']
+// Konvensi format file: PDF (Adobe-merah), Excel (Office-hijau), CSV netral.
+// Tone diturunkan ke 50/700 supaya tidak mendominasi grid dokumen.
 const formatColors = {
-  PDF: 'text-red-500 bg-red-50',
-  CSV: 'text-green-600 bg-green-50',
-  Excel: 'text-kapori-700 bg-kapori-50',
+  PDF: 'text-red-700 bg-red-50',
+  CSV: 'text-gray-700 bg-gray-100',
+  Excel: 'text-green-700 bg-green-50',
 }
 const periodeOptions = [
   { key: 'last7', label: '7 Hari', shortLabel: '7 Hari Terakhir' },
@@ -97,7 +99,7 @@ export default function Laporan() {
       }
       setExtraReports(prev => [newReport, ...prev])
       setIsCreating(false)
-      notify.success(`Laporan dibuat — siap diunduh`)
+      notify.success('Laporan dibuat, siap diunduh')
     }, 1500)
   }
 

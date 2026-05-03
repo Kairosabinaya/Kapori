@@ -59,7 +59,7 @@ export default function Overview() {
       transition={{ duration: 0.2, ease: 'easeOut' }}
       className="space-y-4 md:space-y-6"
     >
-      {/* AI Insight Card — derived from top-priority risk */}
+      {/* AI Insight Card - derived from top-priority risk */}
       <AnimatePresence>
         {showInsight && (
           <motion.div
@@ -91,7 +91,7 @@ export default function Overview() {
             </div>
 
             <p className="text-gray-800 font-semibold mb-1.5 leading-snug">
-              {insight.risk.nama} di {insight.risk.lahan} — estimasi dampak {insight.risk.waktuDampak}.
+              {insight.risk.nama} di {insight.risk.lahan}. Estimasi dampak {insight.risk.waktuDampak}.
             </p>
             <p className="text-sm text-gray-500 mb-4 leading-relaxed">
               {insight.risk.detail}
@@ -115,7 +115,7 @@ export default function Overview() {
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-gray-400 mb-1">Est. dampak</p>
                 <p className="text-sm font-semibold text-gray-700 truncate" title={insight.recommendation?.dampak || ''}>
-                  {insight.recommendation?.dampak || '—'}
+                  {insight.recommendation?.dampak || '-'}
                 </p>
               </div>
             </div>
@@ -162,14 +162,13 @@ export default function Overview() {
         {metrics.map((m, i) => (
           <MetricCard
             key={`${selectedFarm}-${selectedTime}-${i}`}
+            metricKey={m.key}
             icon={m.icon}
             label={m.label}
             value={m.value}
             unit={m.unit}
             trend={m.trend}
             trendValue={m.trendValue}
-            highlight={m.classification === 'critical'}
-            warning={m.classification === 'warning'}
             onClick={() => setSelectedMetric(m)}
           />
         ))}

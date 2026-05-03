@@ -44,7 +44,12 @@ export default function Sidebar({
     >
       {/* Logo + Toggle */}
       <div className="flex items-center justify-between gap-2 px-5 py-4 border-b border-gray-50 shrink-0 min-h-[64px]">
-        {expanded && <KaporiLogo height={32} />}
+        {expanded && (
+          <div className="flex flex-col">
+            <KaporiLogo height={32} />
+            <span className="text-[10px] text-gray-400 mt-1 leading-none">Data Presisi, Panen Lebih Pasti</span>
+          </div>
+        )}
 
         {/* Mobile close */}
         <button

@@ -1,33 +1,30 @@
 // =================== KAPORI DOMAIN LOGIC ===================
-// Precision agriculture rule engine — derives risks, recommendations, and
-// classifications from raw sensor readings. References (sources noted in
-// project docs):
-//   - FAO Irrigation & Drainage Paper 56 (ETc methodology, soil water deficit)
-//   - METER Group: field capacity & wilting point thresholds
-//   - UF/IFAS HS1207: pH ranges for vegetable crops
+// Precision agriculture rule engine - derives risks, recommendations, and
+// classifications from raw sensor readings. Ambang sensor (optimal & critical)
+// di-import dari `sensor-thresholds.js` (single source of truth) supaya AI
+// engine, klasifikasi, dan visualisasi konsisten.
+//
+// Sensor parameters (per KAPORI hardware spec sheet):
+//   - kelembaban (soil volumetric water content, %)
+//   - suhu (soil temperature, °C)
+//   - airHumidity (canopy / ambient relative humidity, %)
+//   - ph (soil pH, 0–14)
+//   - ec (electrical conductivity, dS/m - proxy for nutrient salts in solution)
+//   - npk (NPK availability composite index, 0–100)
+//
+// References:
+//   - FAO Irrigation & Drainage Paper 56 (Allen et al., 1998) - ETc, MAD, refill point
+//   - UF/IFAS HS1207 (2022): soil pH ranges for commercial vegetable production
 //   - NRCS Soil Quality Indicators: EC interpretation
-//   - TNAU Agritech: NPK soil rating
-//   - APS Phytopathology: foliar fungal infection models (RH × temp × leaf wetness)
+//   - TNAU Agritech soil rating chart: NPK availability classes
+//   - APS Phytopathology generic foliar infection model (Magarey et al., 2005)
 
-// THRESHOLDS — keyed [optimal-min, optimal-max], [warning-min, warning-max].
-// Anything outside warning bounds is critical.
-export const THRESHOLDS = {
-  kelembaban:   { optimal: [35, 60], warning: [25, 70], unit: '%',     label: 'Kelembaban tanah' },
-  suhu:         { optimal: [22, 30], warning: [18, 32], unit: '°C',    label: 'Suhu' },
-  ph:           { optimal: [6.0, 7.0], warning: [5.5, 7.5], unit: 'pH', label: 'pH tanah' },
-  ec:           { optimal: [0.8, 1.8], warning: [0.4, 2.5], unit: 'dS/m', label: 'Konduktivitas (EC)' },
-  npk:          { optimal: [60, 90], warning: [40, 95], unit: 'idx',   label: 'Indeks NPK' },
-  airHumidity:  { optimal: [55, 75], warning: [40, 85], unit: '%',     label: 'Kelembaban udara' },
-  sistemHealth: { optimal: [90, 100], warning: [75, 100], unit: '%',   label: 'Kesehatan sistem' },
-}
+import { SENSOR_THRESHOLDS, classifyMetric } from './sensor-thresholds'
 
-export function classifyMetric(value, key) {
-  const t = THRESHOLDS[key]
-  if (!t) return 'unknown'
-  if (value >= t.optimal[0] && value <= t.optimal[1]) return 'optimal'
-  if (value >= t.warning[0] && value <= t.warning[1]) return 'warning'
-  return 'critical'
-}
+// Re-export classifyMetric agar konsumen lama tidak perlu pindah import.
+export { classifyMetric, SENSOR_THRESHOLDS }
+
+const T = SENSOR_THRESHOLDS  // shorthand internal
 
 export function classificationColor(status) {
   return {
@@ -41,62 +38,75 @@ export function classificationColor(status) {
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n))
 
 // ───── Water stress risk (0–100) ─────
-// Drivers: low soil moisture, high temperature, low air humidity.
-// Threshold context: most vegetable crops trigger stress at MAD 30–50% (UMN).
-// Loam/clay soils: stress when volumetric < 30%; severe < 20%.
-export function computeWaterStressRisk({ kelembaban, suhu, airHumidity }) {
+// Driver: kelembaban tanah di bawah optimalMin (FAO 56 refill point); suhu
+// di atas optimalMax mempercepat ETc.
+export function computeWaterStressRisk({ kelembaban, suhu }) {
   let risk = 0
-  if (kelembaban < 35) risk += (35 - kelembaban) * 2.5
-  if (suhu > 30) risk += (suhu - 30) * 6
-  if (airHumidity != null && airHumidity < 50) risk += (50 - airHumidity) * 0.6
+  if (kelembaban < T.kelembaban.optimalMin) {
+    risk += (T.kelembaban.optimalMin - kelembaban) * 1.6
+  }
+  if (suhu > T.suhu.optimalMax) {
+    risk += (suhu - T.suhu.optimalMax) * 6
+  }
   return Math.round(clamp(risk, 0, 100))
 }
 
 // ───── Disease (fungal) risk (0–100) ─────
-// Drivers: high air humidity (RH > 70%), moderate temp window (15–25°C ideal
-// for many fungal infections), high soil moisture (canopy wetness proxy).
-// Reference: APS generic foliar infection model.
-export function computeDiseaseRisk({ airHumidity, suhu, kelembaban }) {
+// Driver utama di iklim tropis: kelembaban udara tinggi (canopy wetness) +
+// suhu di window pathogen (~18–25°C). Reference: APS generic foliar
+// infection model.
+export function computeDiseaseRisk({ kelembaban, airHumidity, suhu }) {
   let risk = 0
-  if (airHumidity != null && airHumidity > 70) risk += (airHumidity - 70) * 2
-  // Temperature window scoring
-  if (suhu >= 15 && suhu <= 25) risk += 30
-  else if (suhu > 25 && suhu <= 30) risk += 12
-  // Wet soil → splash + canopy moisture
-  if (kelembaban > 70) risk += (kelembaban - 70) * 0.8
+  if (airHumidity != null && airHumidity > T.airHumidity.optimalMax) {
+    risk += (airHumidity - T.airHumidity.optimalMax) * 3
+  }
+  if (kelembaban != null && kelembaban > T.kelembaban.optimalMax) {
+    risk += (kelembaban - T.kelembaban.optimalMax) * 1.8
+  }
+  if (suhu != null) {
+    if (suhu >= 18 && suhu <= 25)      risk += 35  // pathogen window
+    else if (suhu > 25 && suhu <= 28)  risk += 18
+  }
   return Math.round(clamp(risk, 0, 100))
 }
 
 // ───── Fertilization need (0–100) ─────
-// Low NPK index ⇒ need fertilizer. Low EC ⇒ low nutrient salts in solution.
-// Reference: TNAU rating + NRCS EC interpretation.
+// Indeks NPK di bawah optimalMin (monotonic) ⇒ butuh pupuk. EC di bawah
+// optimalMin ⇒ nutrisi terlarut rendah. Reference: TNAU rating + NRCS EC.
 export function computeFertilizationNeed({ npk, ec }) {
   let need = 0
-  if (npk < 60) need += (60 - npk) * 1.6
-  if (ec < 0.8) need += (0.8 - ec) * 35
+  if (npk != null && npk < T.npk.optimalMin) {
+    need += (T.npk.optimalMin - npk) * 1.6
+  }
+  if (ec != null && ec < T.ec.optimalMin) {
+    need += (T.ec.optimalMin - ec) * 18
+  }
   return Math.round(clamp(need, 0, 100))
 }
 
 // ───── Irrigation need (0–100, treated as % MAD depleted) ─────
-// Vegetable crop refill point is ≈ 35% volumetric for loam/clay (FAO 56).
+// Refill point dipatok ke optimalMin (60%). Critical low (<criticalMin = 30%)
+// = wilting imminent → 100% need.
 export function computeIrrigationNeed({ kelembaban }) {
-  if (kelembaban >= 35) return 0
-  if (kelembaban >= 30) return 35
-  if (kelembaban >= 25) return 65
-  if (kelembaban >= 20) return 85
-  return 100
+  if (kelembaban == null) return 0
+  const t = T.kelembaban
+  if (kelembaban >= t.optimalMin) return 0          // ≥60% - tidak perlu
+  if (kelembaban >= t.optimalMin - 10) return 30    // 50–60% - sedikit
+  if (kelembaban >= t.criticalMin + 10) return 55   // 40–50% - sedang
+  if (kelembaban >= t.criticalMin) return 80        // 30–40% - tinggi
+  return 100                                        // <30% - kritis
 }
 
-// ───── Time to water-stress impact (rough estimate, hours) ─────
-// At higher temp + lower moisture, depletion accelerates.
+// ───── Time-to-impact estimator (water stress, hours) ─────
 export function estimateTimeToWaterStress({ kelembaban, suhu }) {
-  if (kelembaban < 20) return '< 1 jam'
-  const buffer = Math.max(0, kelembaban - 25)  // %-points before critical
-  const depletionRate = Math.max(0.5, (suhu - 20) * 0.4) // %/h
+  const t = T.kelembaban
+  if (kelembaban == null) return '-'
+  if (kelembaban < t.criticalMin - 10) return '< 1 jam'
+  const buffer = Math.max(0, kelembaban - t.criticalMin)
+  const depletionRate = Math.max(0.5, ((suhu ?? 25) - 20) * 0.4)
   const hours = buffer / depletionRate
   if (hours < 1) return '< 1 jam'
   if (hours < 2) return '~1 jam'
-  if (hours < 6) return `${Math.round(hours)} jam`
   if (hours < 24) return `${Math.round(hours)} jam`
   return `${Math.round(hours / 24)} hari`
 }
@@ -114,13 +124,11 @@ export function generateRecommendations(lahanList) {
     const waterStress = computeWaterStressRisk(l)
     const diseaseRisk = computeDiseaseRisk(l)
 
-    // 1) IRRIGATION — when soil moisture below refill point
-    if (irrigationNeed >= 35) {
-      // Crude water requirement: refill 1 m soil column from current to 45%.
-      // ΔVWC × root depth × 10 → mm water (which equals L/m²).
-      const targetVWC = 45
+    // 1) IRRIGATION - when soil moisture below refill point
+    if (irrigationNeed >= 30) {
+      const targetVWC = T.kelembaban.optimalMin + 10  // tengah-tengah optimal
       const deltaVWC = Math.max(0, targetVWC - l.kelembaban)
-      const rootDepthMM = 300 // assume 30 cm root zone for vegetables
+      const rootDepthMM = 300
       const liters_per_m2 = Math.round((deltaVWC / 100) * rootDepthMM)
       recs.push({
         id: id++,
@@ -130,52 +138,51 @@ export function generateRecommendations(lahanList) {
         aksi: `Irigasi ${liters_per_m2} L/m² selama 30–45 menit (drip 4 L/jam)`,
         dampak: `Pulihkan kelembaban dari ${l.kelembaban}% ke ~${targetVWC}%`,
         match: 80 + Math.round(irrigationNeed * 0.18),
-        reason: `Kelembaban ${l.kelembaban}% di bawah refill point 35% (FAO 56 MAD).`,
-        urgency: irrigationNeed > 80 ? 'high' : irrigationNeed > 50 ? 'medium' : 'low',
+        reason: `Kelembaban ${l.kelembaban}% di bawah refill point ${T.kelembaban.optimalMin}% (FAO 56 MAD).`,
+        urgency: irrigationNeed >= 80 ? 'high' : irrigationNeed >= 50 ? 'medium' : 'low',
       })
     }
 
-    // 2) FERTIGATION — low NPK / low EC
+    // 2) FERTIGATION - low NPK / low EC
     if (fertNeed >= 30) {
-      const npkBoost = Math.round((75 - l.npk) * 1.2)
-      const dose = npkBoost > 30 ? '40 kg/ha NPK 16-16-16' : '25 kg/ha NPK 16-16-16'
+      const dose = fertNeed > 60 ? '40 kg/ha NPK 16-16-16' : '25 kg/ha NPK 16-16-16'
       recs.push({
         id: id++,
         type: 'fertilizer',
         lahan: l.nama,
         judul: 'Aplikasi pupuk NPK presisi',
         aksi: `${dose} via fertigasi (3 hari berturut)`,
-        dampak: `Naikkan indeks NPK ke ~75 (dari ${l.npk})`,
+        dampak: `Naikkan indeks NPK ke ≥${T.npk.optimalMin} (dari ${l.npk})`,
         match: 75 + Math.round(fertNeed * 0.2),
-        reason: `Indeks NPK ${l.npk} (target 60–90), EC ${l.ec} dS/m menandakan rendahnya nutrisi terlarut.`,
+        reason: `Indeks NPK ${l.npk} di bawah target ${T.npk.optimalMin}; EC ${l.ec} dS/m menandakan rendahnya nutrisi terlarut.`,
         urgency: fertNeed > 60 ? 'medium' : 'low',
       })
     }
 
     // 3) pH CORRECTION
-    if (l.ph < 5.5) {
-      const limeAmount = Math.round((6.2 - l.ph) * 1500) // kg/ha dolomit, rough
+    if (l.ph < T.ph.criticalMin) {
+      const limeAmount = Math.round((T.ph.optimalMin - l.ph) * 1500)
       recs.push({
         id: id++,
         type: 'liming',
         lahan: l.nama,
         judul: 'Aplikasi kapur dolomit',
         aksi: `${limeAmount} kg/ha kapur dolomit, taburkan merata`,
-        dampak: `Naikkan pH dari ${l.ph} ke target 6.0–6.5`,
+        dampak: `Naikkan pH dari ${l.ph} ke target ${T.ph.optimalMin}–${T.ph.optimalMax}`,
         match: 88,
-        reason: `pH ${l.ph} di bawah ambang 5.5 — risiko keracunan Al/Mn dan kunci hara.`,
+        reason: `pH ${l.ph} di bawah ambang aman ${T.ph.criticalMin}. Risiko keracunan Al/Mn dan kunci hara.`,
         urgency: 'medium',
       })
-    } else if (l.ph > 7.5) {
+    } else if (l.ph > T.ph.criticalMax) {
       recs.push({
         id: id++,
         type: 'acidify',
         lahan: l.nama,
         judul: 'Aplikasi belerang elemental',
         aksi: `200 kg/ha S elemental + bahan organik`,
-        dampak: `Turunkan pH dari ${l.ph} ke target 6.5–7.0`,
+        dampak: `Turunkan pH dari ${l.ph} ke target ${T.ph.optimalMin}–${T.ph.optimalMax}`,
         match: 78,
-        reason: `pH ${l.ph} terlalu basa — mengikat besi & mangan, menghambat penyerapan.`,
+        reason: `pH ${l.ph} di atas ambang ${T.ph.criticalMax}. Mengikat Fe/Mn dan menghambat penyerapan.`,
         urgency: 'low',
       })
     }
@@ -190,14 +197,13 @@ export function generateRecommendations(lahanList) {
         aksi: 'Mancozeb 80% WP, 2 g/L, semprot pagi sebelum embun',
         dampak: `Turunkan risiko infeksi jamur ${diseaseRisk}% → <20%`,
         match: 70 + Math.round(diseaseRisk * 0.2),
-        reason: `RH ${l.airHumidity}% + suhu ${l.suhu}°C berada di window ideal patogen jamur.`,
+        reason: `Kelembaban udara ${l.airHumidity}% pada suhu ${l.suhu}°C berada dalam window patogen jamur.`,
         urgency: diseaseRisk > 70 ? 'high' : 'medium',
       })
     }
 
-    // 5) WATER STRESS MITIGATION (separate from straight irrigation)
-    if (waterStress >= 60 && irrigationNeed < 35) {
-      // High temp + dry air situation but moisture still OK — preventive mulsa
+    // 5) WATER STRESS MITIGATION - preventive (mulsa) when moisture still OK
+    if (waterStress >= 60 && irrigationNeed < 30) {
       recs.push({
         id: id++,
         type: 'mulching',
@@ -206,13 +212,12 @@ export function generateRecommendations(lahanList) {
         aksi: 'Mulsa jerami / serbuk gergaji 5 cm di sekitar tanaman',
         dampak: 'Kurangi evaporasi tanah hingga 60%, stabilkan suhu zona akar',
         match: 80,
-        reason: `Risiko stres air ${waterStress}% (suhu ${l.suhu}°C, RH ${l.airHumidity}%).`,
+        reason: `Risiko stres air ${waterStress}% akibat suhu ${l.suhu}°C tinggi.`,
         urgency: 'medium',
       })
     }
   }
 
-  // Sort by urgency desc, then by match score desc
   const urgencyRank = { high: 3, medium: 2, low: 1 }
   recs.sort((a, b) => (urgencyRank[b.urgency] - urgencyRank[a.urgency]) || (b.match - a.match))
   return recs
@@ -237,7 +242,7 @@ export function generateRisks(lahanList) {
         score: waterStress,
         waktuDampak: estimateTimeToWaterStress(l),
         pencegahan: waterStress >= 70 ? 'Irigasi segera + mulsa' : 'Irigasi bertahap + monitor',
-        detail: `Kombinasi kelembaban tanah ${l.kelembaban}% (target ≥35%) dengan suhu ${l.suhu}°C dan kelembaban udara ${l.airHumidity}% mendorong defisit air pada zona akar. Tanpa intervensi, stomata akan menutup, fotosintesis menurun, dan dalam waktu beberapa jam berikutnya tanaman akan mengalami wilting yang signifikan.`,
+        detail: `Kombinasi kelembaban tanah ${l.kelembaban}% (target ${T.kelembaban.optimalMin}–${T.kelembaban.optimalMax}%, FAO 56 refill point) dengan suhu ${l.suhu}°C mendorong defisit air pada zona akar. Tanpa intervensi, stomata akan menutup, fotosintesis menurun, dan dalam beberapa jam berikutnya tanaman akan mengalami wilting yang signifikan dan kehilangan hasil panen permanen.`,
       })
     }
 
@@ -251,29 +256,43 @@ export function generateRisks(lahanList) {
         score: diseaseRisk,
         waktuDampak: '24–72 jam',
         pencegahan: 'Fungisida preventif + ventilasi kanopi',
-        detail: `Kelembaban udara ${l.airHumidity}% pada suhu ${l.suhu}°C berada dalam jendela ideal patogen jamur (downy mildew, late blight, powdery mildew). Kelembaban tanah ${l.kelembaban}% meningkatkan probabilitas kanopi basah dan splash dispersal. Pengendalian preventif jauh lebih efektif daripada kuratif.`,
+        detail: `Kelembaban udara ${l.airHumidity}% (di atas optimal ${T.airHumidity.optimalMax}%) pada suhu ${l.suhu}°C berada dalam window ideal patogen jamur (downy mildew, late blight, powdery mildew). Pengendalian preventif jauh lebih efektif daripada kuratif. Referensi: APS generic foliar infection model.`,
       })
     }
 
-    if (l.ph < 5.5 || l.ph > 7.5) {
-      const tooAcid = l.ph < 5.5
+    if (l.ph < T.ph.criticalMin || l.ph > T.ph.criticalMax) {
+      const tooAcid = l.ph < T.ph.criticalMin
+      const phMid = (T.ph.optimalMin + T.ph.optimalMax) / 2
       risks.push({
         id: id++,
         type: 'ph_extreme',
         tipe: 'warning',
         nama: tooAcid ? 'pH tanah terlalu asam' : 'pH tanah terlalu basa',
         lahan: l.nama,
-        score: Math.round(Math.abs(l.ph - 6.5) * 30),
+        score: Math.round(Math.abs(l.ph - phMid) * 30),
         waktuDampak: '3–7 hari (akumulatif)',
         pencegahan: tooAcid ? 'Pengapuran dolomit' : 'Belerang + bahan organik',
         detail: tooAcid
-          ? `pH ${l.ph} di bawah ambang aman 5.5. Pada kondisi ini Al³⁺ dan Mn²⁺ menjadi toksik bagi akar, P terikat menjadi tidak tersedia, dan aktivitas mikroba simbiosis menurun.`
-          : `pH ${l.ph} di atas ambang 7.5. Fe, Mn, Zn, dan B menjadi tidak tersedia untuk akar; gejala klorosis daun muda akan muncul.`,
+          ? `pH ${l.ph} di bawah ambang aman ${T.ph.criticalMin}. Al³⁺ dan Mn²⁺ menjadi toksik bagi akar, P terikat menjadi tidak tersedia, dan aktivitas mikroba simbiosis menurun.`
+          : `pH ${l.ph} di atas ambang ${T.ph.criticalMax}. Fe, Mn, Zn, dan B menjadi tidak tersedia untuk akar; gejala klorosis daun muda akan muncul.`,
+      })
+    }
+
+    if (l.npk != null && l.npk < T.npk.criticalMin) {
+      risks.push({
+        id: id++,
+        type: 'nutrient_deficiency',
+        tipe: 'warning',
+        nama: 'Defisiensi NPK',
+        lahan: l.nama,
+        score: Math.round((T.npk.criticalMin - l.npk) * 2),
+        waktuDampak: '5–10 hari (akumulatif)',
+        pencegahan: 'Fertigasi NPK presisi',
+        detail: `Indeks NPK ${l.npk} di bawah ambang ${T.npk.criticalMin}. Konduktivitas EC ${l.ec} dS/m mengonfirmasi rendahnya nutrisi terlarut. Defisiensi nitrogen akan menampakkan klorosis daun tua dalam 5–10 hari.`,
       })
     }
   }
 
-  // Sort by criticality then score
   risks.sort((a, b) => {
     if (a.tipe !== b.tipe) return a.tipe === 'critical' ? -1 : 1
     return b.score - a.score
@@ -292,4 +311,18 @@ export function topInsight(lahanList) {
     risk: top,
     recommendation: topRec,
   }
+}
+
+// ───── Performance KPIs (advertised vs realised) ─────
+// Grounded in industry benchmarks cited in pitch:
+//   - Fasal India + ScienceDirect 2025 systematic review: 25–35% irrigation
+//     water savings using IoT-driven precision agriculture.
+//   - Nitrogen-use efficiency studies: 15–25% reduction in N fertilizer when
+//     fertigation is sensor-driven (target ≥20%).
+//   - Sensor-based prediction models: ≥85% accuracy for water stress and
+//     foliar disease early detection (target 90%).
+export const KPI_BENCHMARKS = {
+  waterSaving:  { value: 28, unit: '%', label: 'Penghematan air irigasi', range: '25–35%' },
+  nitrogenSave: { value: 22, unit: '%', label: 'Pengurangan pupuk nitrogen', range: '20%' },
+  aiAccuracy:   { value: 91, unit: '%', label: 'Akurasi prediksi AI', range: '90%' },
 }

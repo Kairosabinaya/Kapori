@@ -4,6 +4,7 @@ import { User, Bell, Sliders, Mail, Save, Camera, Check } from 'lucide-react'
 import clsx from 'clsx'
 import { notify } from '../lib/notify'
 import Modal from '../components/ui/Modal'
+import { SENSOR_THRESHOLDS } from '../lib/sensor-thresholds'
 
 function Toggle({ label, defaultChecked = false, onChange }) {
   const [checked, setChecked] = useState(defaultChecked)
@@ -180,17 +181,50 @@ export default function Pengaturan() {
       </div>
 
       {/* Section 3: Ambang Batas Peringatan */}
+      {/* Default value setiap slider diambil dari SENSOR_THRESHOLDS (single
+          source of truth). User bisa override per akun kalau crop spesifik
+          butuh rentang berbeda. */}
       <div className="card p-5">
         <div className="flex items-center gap-2 mb-2">
           <Sliders className="w-5 h-5 text-kapori-600" />
           <h2 className="text-lg font-bold text-gray-800">Ambang batas peringatan</h2>
         </div>
         <div className="divide-y divide-gray-100">
-          <SliderInput label="Kelembaban minimum" defaultValue={40} min={0} max={100} unit="%" />
-          <SliderInput label="Kelembaban maksimum" defaultValue={80} min={0} max={100} unit="%" />
-          <SliderInput label="pH minimum" defaultValue={6.0} min={4.0} max={9.0} step={0.1} />
-          <SliderInput label="pH maksimum" defaultValue={7.5} min={4.0} max={9.0} step={0.1} />
-          <SliderInput label="Suhu maksimum" defaultValue={35} min={20} max={50} unit="°C" />
+          <SliderInput
+            label="Kelembaban minimum"
+            defaultValue={SENSOR_THRESHOLDS.kelembaban.optimalMin}
+            min={SENSOR_THRESHOLDS.kelembaban.min}
+            max={SENSOR_THRESHOLDS.kelembaban.max}
+            unit={SENSOR_THRESHOLDS.kelembaban.unit}
+          />
+          <SliderInput
+            label="Kelembaban maksimum"
+            defaultValue={SENSOR_THRESHOLDS.kelembaban.optimalMax}
+            min={SENSOR_THRESHOLDS.kelembaban.min}
+            max={SENSOR_THRESHOLDS.kelembaban.max}
+            unit={SENSOR_THRESHOLDS.kelembaban.unit}
+          />
+          <SliderInput
+            label="pH minimum"
+            defaultValue={SENSOR_THRESHOLDS.ph.optimalMin}
+            min={4.0}
+            max={9.0}
+            step={0.1}
+          />
+          <SliderInput
+            label="pH maksimum"
+            defaultValue={SENSOR_THRESHOLDS.ph.optimalMax}
+            min={4.0}
+            max={9.0}
+            step={0.1}
+          />
+          <SliderInput
+            label="Suhu maksimum"
+            defaultValue={SENSOR_THRESHOLDS.suhu.optimalMax}
+            min={SENSOR_THRESHOLDS.suhu.min}
+            max={SENSOR_THRESHOLDS.suhu.max}
+            unit={SENSOR_THRESHOLDS.suhu.unit}
+          />
         </div>
       </div>
 

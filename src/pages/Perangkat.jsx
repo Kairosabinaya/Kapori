@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Cpu, Plus, Wifi, Battery, Sun, Radio, Zap as Relay,
-  Cloud, Network, Server, AlertCircle, Clock, Power,
+  Cloud, Server, AlertCircle, Clock, Power,
   RefreshCw, Trash2, Download
 } from 'lucide-react'
 import clsx from 'clsx'
@@ -12,7 +12,7 @@ import StatusDot from '../components/ui/StatusDot'
 import ProgressBar from '../components/ui/ProgressBar'
 import Modal from '../components/ui/Modal'
 import { getFilteredDevices } from '../data'
-import { classifyMetric } from '../lib/domain'
+import { SENSOR_THRESHOLDS, classifyMetric } from '../lib/sensor-thresholds'
 import { downloadDeviceDiagnosticCSV } from '../lib/downloads'
 import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip
@@ -29,11 +29,10 @@ function generateSignalHistory(deviceId) {
 }
 
 const tipeMeta = {
-  sensor:   { icon: Radio,   label: 'Sensor IoT',          color: 'bg-kapori-50 text-kapori-600' },
-  relay:    { icon: Relay,   label: 'Relay irigasi',       color: 'bg-blue-50 text-blue-600' },
-  weather:  { icon: Cloud,   label: 'Stasiun cuaca',       color: 'bg-sky-50 text-sky-600' },
-  gateway:  { icon: Network, label: 'Gateway LTE',         color: 'bg-purple-50 text-purple-600' },
-  compute:  { icon: Server,  label: 'Edge AI compute',     color: 'bg-indigo-50 text-indigo-600' },
+  sensor:   { icon: Radio,   label: 'Sensor IoT',          color: 'bg-kapori-50 text-kapori-700' },
+  relay:    { icon: Relay,   label: 'Relay irigasi',       color: 'bg-gray-100 text-gray-700' },
+  weather:  { icon: Cloud,   label: 'Stasiun cuaca',       color: 'bg-gray-100 text-gray-700' },
+  compute:  { icon: Server,  label: 'Edge AI compute',     color: 'bg-gray-100 text-gray-700' },
 }
 
 const newDeviceTypes = [
@@ -286,7 +285,7 @@ export default function Perangkat() {
       <Modal
         isOpen={!!diagnosticDevice}
         onClose={() => setDiagnosticDevice(null)}
-        title={diagnosticDevice ? `${diagnosticDevice.nama} — diagnostik` : ''}
+        title={diagnosticDevice ? `Diagnostik ${diagnosticDevice.nama}` : ''}
       >
         {diagnosticDevice && (
           <DiagnosticContent
@@ -399,6 +398,9 @@ export default function Perangkat() {
   )
 }
 
+// Urutan metrik yang ditampilkan di diagnostik perangkat sensor
+const DIAG_KEYS = ['kelembaban', 'suhu', 'airHumidity', 'ph', 'ec', 'npk', 'sistemHealth']
+
 function DiagnosticContent({ device, signalHistory, onRestart, onCalibrate, onDownload }) {
   const meta = tipeMeta[device.tipe] || tipeMeta.sensor
   const Icon = meta.icon
@@ -442,13 +444,31 @@ function DiagnosticContent({ device, signalHistory, onRestart, onCalibrate, onDo
       {isSensor && device.kelembaban != null && (
         <div>
           <p className="text-sm font-semibold text-gray-700 mb-2">Pembacaan sensor terakhir</p>
-          <div className="bg-gray-50 rounded-xl p-3 space-y-1.5 text-sm">
-            <DiagRow label="Kelembaban tanah" value={`${device.kelembaban}%`} status={classifyMetric(device.kelembaban, 'kelembaban')} />
-            <DiagRow label="Suhu" value={`${device.suhu}°C`} status={classifyMetric(device.suhu, 'suhu')} />
-            <DiagRow label="Kelembaban udara" value={`${device.airHumidity}%`} status={classifyMetric(device.airHumidity, 'airHumidity')} />
-            <DiagRow label="pH tanah" value={device.ph} status={classifyMetric(device.ph, 'ph')} />
-            <DiagRow label="Konduktivitas (EC)" value={`${device.ec} dS/m`} status={classifyMetric(device.ec, 'ec')} />
-            <DiagRow label="Indeks NPK" value={device.npk} status={classifyMetric(device.npk, 'npk')} />
+          <div className="rounded-xl bg-gray-50 divide-y divide-gray-100">
+            {DIAG_KEYS.map(key => {
+              const t = SENSOR_THRESHOLDS[key]
+              if (!t) return null
+              const val = device[key]
+              const status = classifyMetric(val, key)
+              const valueClass = status === 'critical' ? 'text-red-700'
+                              : status === 'warning' ? 'text-amber-700'
+                              : status === 'optimal' ? 'text-green-700'
+                              : 'text-gray-500'
+              const ideal = t.monotonic === 'higher-better' ? `≥ ${t.optimalMin}${t.unit}`
+                         : t.monotonic === 'lower-better'  ? `≤ ${t.optimalMax}${t.unit}`
+                         : `${t.optimalMin}–${t.optimalMax}${t.unit}`
+              return (
+                <div key={key} className="flex items-center justify-between gap-2 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm text-gray-700 truncate leading-tight">{t.label}</p>
+                    <p className="text-[11px] text-gray-400 leading-tight mt-0.5">Ideal {ideal}</p>
+                  </div>
+                  <span className={clsx('text-sm font-semibold tabular-nums shrink-0', valueClass)}>
+                    {val ?? '-'}{val != null ? ` ${t.unit}` : ''}
+                  </span>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
@@ -495,24 +515,3 @@ function DiagnosticContent({ device, signalHistory, onRestart, onCalibrate, onDo
   )
 }
 
-function DiagRow({ label, value, status }) {
-  return (
-    <div className="flex justify-between items-center">
-      <span className="text-gray-500">{label}</span>
-      <span className={clsx(
-        'font-semibold tabular-nums flex items-center gap-1.5',
-        status === 'optimal' ? 'text-green-700'
-          : status === 'warning' ? 'text-amber-700'
-          : status === 'critical' ? 'text-red-700' : 'text-gray-800'
-      )}>
-        <span className={clsx(
-          'w-1.5 h-1.5 rounded-full',
-          status === 'optimal' ? 'bg-green-500'
-            : status === 'warning' ? 'bg-amber-500'
-            : status === 'critical' ? 'bg-red-500' : 'bg-gray-400'
-        )} />
-        {value}
-      </span>
-    </div>
-  )
-}

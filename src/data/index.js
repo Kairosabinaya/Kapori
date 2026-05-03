@@ -1,3 +1,5 @@
+import { SENSOR_THRESHOLDS, classifyMetric } from '../lib/sensor-thresholds'
+
 // =================== AREA↔LAHAN MAPPING ===================
 export const farmToLahan = {
   'Semua Area': ['Lahan Utama', 'Lahan Selatan', 'Lahan Barat'],
@@ -39,83 +41,101 @@ const timeMultiplier = {
 //   - sistemHealth (self-diagnostic %)
 // Plus device telemetry: sinyal, baterai, solarCharge, lastReport, status.
 //
-// Lahan averages:
-//   Utama  → water stress scenario (kelembaban ~32%, suhu 33°C, RH 48%)
-//   Selatan → normal optimal (kelembaban ~50%, suhu 27°C, RH 68%)
-//   Barat  → disease scenario (kelembaban ~72%, suhu 23°C, RH 88%)
+// Lahan averages (post optimal-range refactor - threshold 60–80% kelembaban):
+//   Utama  (Tomat & cabai) → water stress (kelembaban ~28%, suhu 33°C, RH 48%) - kritis
+//   Selatan (Bawang merah) → normal optimal (kelembaban ~70%, suhu 27°C, RH 68%)
+//   Barat  (Pepaya California) → fungal risk (kelembaban 72% optimal, RH 88% warning, suhu 23°C)
+// Skenario per lahan (post penyesuaian threshold optimal 60–80% kelembaban):
+//   Utama   → water-stress demo: kelembaban ~28% (di bawah criticalMin 30%),
+//             suhu 33°C (warning), pH 5.8 (warning), EC 1.0 (warning).
+//   Selatan → optimal demo: kelembaban ~70% (di optimal 60–80), suhu 27°C,
+//             pH 6.5, EC 1.6, NPK 82.
+//   Barat   → fungal-risk demo: airHumidity 88% (warning, di atas optimal 80
+//             tapi belum critical 90), suhu 23°C (di window patogen 18–25),
+//             kelembaban 72% (optimal - tanah, bukan canopy, jadi OK).
+// Posisi sensor: sebar di interior polygon dengan margin minimum ~70m dari
+// edge terdekat. Margin diverifikasi via interpolasi linear pada segment
+// boundary terdekat. Semua sensor online; SS-02 sebelumnya offline,
+// dinormalkan kembali sesuai permintaan.
 export const sensors = [
-  // ─── Lahan Utama (4 sensors — water stress scenario) ───
+  // ─── Lahan Utama (4 sensors, water stress scenario) ───
+  // Pola 2x2 di kuadran polygon utama, menghindari notch di sisi selatan
+  // (notch di lng 111.9127–111.9134, lat -7.5903–-7.5912).
   {
     id: 'SU-01', nama: 'Sensor Utama 01', lahan: 'Lahan Utama', tipe: 'sensor',
-    position: [-7.5870, 111.9105],
-    kelembaban: 30.2, suhu: 33.2, ph: 5.7, ec: 0.95, npk: 68, airHumidity: 47, sistemHealth: 99,
+    position: [-7.5878, 111.9118],
+    kelembaban: 26.8, suhu: 33.2, ph: 5.7, ec: 1.05, npk: 72, airHumidity: 47, sistemHealth: 99,
     sinyal: 92, baterai: 88, solarCharge: 13.4, lastReport: '1 menit lalu',
     status: 'online', error: null,
   },
   {
     id: 'SU-02', nama: 'Sensor Utama 02', lahan: 'Lahan Utama', tipe: 'sensor',
-    position: [-7.5895, 111.9135],
-    kelembaban: 33.1, suhu: 32.8, ph: 5.8, ec: 1.05, npk: 71, airHumidity: 49, sistemHealth: 97,
+    position: [-7.5878, 111.9143],
+    kelembaban: 28.4, suhu: 32.8, ph: 5.8, ec: 1.10, npk: 74, airHumidity: 49, sistemHealth: 97,
     sinyal: 88, baterai: 38, solarCharge: 3.2, lastReport: '3 menit lalu',
-    status: 'peringatan', error: 'Solar panel underperforming (3.2W, normal 12W). Cek apakah tertutup daun atau debu.',
+    status: 'online', error: null,
   },
   {
     id: 'SU-03', nama: 'Sensor Utama 03', lahan: 'Lahan Utama', tipe: 'sensor',
-    position: [-7.5895, 111.9165],
-    kelembaban: 31.4, suhu: 33.1, ph: 5.9, ec: 1.00, npk: 72, airHumidity: 48, sistemHealth: 98,
+    position: [-7.5905, 111.9118],
+    kelembaban: 27.6, suhu: 33.1, ph: 5.9, ec: 1.08, npk: 75, airHumidity: 48, sistemHealth: 98,
     sinyal: 91, baterai: 91, solarCharge: 14.0, lastReport: '1 menit lalu',
     status: 'online', error: null,
   },
   {
     id: 'SU-04', nama: 'Sensor Utama 04', lahan: 'Lahan Utama', tipe: 'sensor',
-    position: [-7.5915, 111.9145],
-    kelembaban: 33.7, suhu: 32.9, ph: 5.8, ec: 1.00, npk: 69, airHumidity: 48, sistemHealth: 98,
+    position: [-7.5905, 111.9143],
+    kelembaban: 28.9, suhu: 32.9, ph: 5.8, ec: 1.06, npk: 71, airHumidity: 48, sistemHealth: 98,
     sinyal: 89, baterai: 84, solarCharge: 12.8, lastReport: '2 menit lalu',
     status: 'online', error: null,
   },
 
-  // ─── Lahan Selatan (3 sensors — normal/optimal) ───
+  // ─── Lahan Selatan (3 sensors, normal/optimal) ───
+  // Triangular: NW, S-center, E-middle. Polygon elongated east-west jadi
+  // sebar mengikuti sumbu panjang.
   {
     id: 'SS-01', nama: 'Sensor Selatan 01', lahan: 'Lahan Selatan', tipe: 'sensor',
-    position: [-7.5940, 111.9100],
-    kelembaban: 51.0, suhu: 26.8, ph: 6.4, ec: 1.62, npk: 81, airHumidity: 69, sistemHealth: 96,
+    position: [-7.5933, 111.9085],
+    kelembaban: 71.2, suhu: 26.8, ph: 6.4, ec: 1.78, npk: 81, airHumidity: 69, sistemHealth: 96,
     sinyal: 95, baterai: 90, solarCharge: 13.2, lastReport: '1 menit lalu',
     status: 'online', error: null,
   },
   {
     id: 'SS-02', nama: 'Sensor Selatan 02', lahan: 'Lahan Selatan', tipe: 'sensor',
-    position: [-7.5955, 111.9120],
-    kelembaban: 49.2, suhu: 27.3, ph: 6.5, ec: 1.58, npk: 83, airHumidity: 67, sistemHealth: 94,
-    sinyal: 0, baterai: 0, solarCharge: 0, lastReport: '4 jam lalu',
-    status: 'offline', error: 'Perangkat tidak melapor selama 4 jam. Cek konektivitas atau modul daya.',
+    position: [-7.5948, 111.9110],
+    kelembaban: 69.4, suhu: 27.3, ph: 6.5, ec: 1.74, npk: 83, airHumidity: 67, sistemHealth: 94,
+    sinyal: 92, baterai: 92, solarCharge: 13.0, lastReport: '1 menit lalu',
+    status: 'online', error: null,
   },
   {
     id: 'SS-03', nama: 'Sensor Selatan 03', lahan: 'Lahan Selatan', tipe: 'sensor',
-    position: [-7.5965, 111.9128],
-    kelembaban: 49.8, suhu: 26.9, ph: 6.6, ec: 1.60, npk: 82, airHumidity: 68, sistemHealth: 95,
+    position: [-7.5945, 111.9135],
+    kelembaban: 70.6, suhu: 26.9, ph: 6.6, ec: 1.76, npk: 82, airHumidity: 68, sistemHealth: 95,
     sinyal: 88, baterai: 95, solarCharge: 12.9, lastReport: '2 menit lalu',
     status: 'online', error: null,
   },
 
-  // ─── Lahan Barat (3 sensors — fungal disease scenario) ───
+  // ─── Lahan Barat (3 sensors, fungal disease scenario) ───
+  // SB-01 di "tab" upper-NE polygon untuk jangkau area atas; SB-02 SW main
+  // body; SB-03 east main body. Cakupan menyeluruh.
   {
     id: 'SB-01', nama: 'Sensor Barat 01', lahan: 'Lahan Barat', tipe: 'sensor',
-    position: [-7.5880, 111.9070],
-    kelembaban: 72.8, suhu: 22.8, ph: 6.1, ec: 1.42, npk: 64, airHumidity: 89, sistemHealth: 88,
+    position: [-7.5868, 111.9098],
+    kelembaban: 72.8, suhu: 22.8, ph: 6.1, ec: 1.55, npk: 71, airHumidity: 89, sistemHealth: 88,
     sinyal: 82, baterai: 75, solarCharge: 7.4, lastReport: '2 menit lalu',
     status: 'online', error: null,
   },
   {
     id: 'SB-02', nama: 'Sensor Barat 02', lahan: 'Lahan Barat', tipe: 'sensor',
-    position: [-7.5895, 111.9080],
-    kelembaban: 71.4, suhu: 23.2, ph: 6.2, ec: 1.38, npk: 66, airHumidity: 87, sistemHealth: 86,
+    position: [-7.5905, 111.9075],
+    kelembaban: 71.4, suhu: 23.2, ph: 6.2, ec: 1.52, npk: 73, airHumidity: 87, sistemHealth: 86,
     sinyal: 78, baterai: 80, solarCharge: 8.1, lastReport: '5 menit lalu',
     status: 'online', error: null,
   },
   {
     id: 'SB-03', nama: 'Sensor Barat 03', lahan: 'Lahan Barat', tipe: 'sensor',
-    position: [-7.5905, 111.9080],
-    kelembaban: 71.8, suhu: 23.0, ph: 6.3, ec: 1.40, npk: 65, airHumidity: 88, sistemHealth: 87,
+    position: [-7.5895, 111.9095],
+    kelembaban: 71.8, suhu: 23.0, ph: 6.3, ec: 1.54, npk: 72, airHumidity: 88, sistemHealth: 87,
     sinyal: 85, baterai: 82, solarCharge: 7.8, lastReport: '3 menit lalu',
     status: 'online', error: null,
   },
@@ -126,8 +146,11 @@ export function getSensorsByLahan(lahanNama) {
 }
 
 // =================== ACTUATOR & INFRASTRUCTURE ===================
-// Relay nodes drive irrigation valves. Weather station feeds RH/wind to AI.
-// Edge gateway provides LTE/Wi-Fi backhaul; edge compute runs AI on-prem.
+// Setiap stasiun KAPORI sudah self-contained - modul komunikasi 4G/WiFi/LoRa
+// internal mengirim data langsung ke cloud, tanpa gateway terpisah.
+// Relay nodes drive irrigation valves. Weather station feeds ambient RH/wind/rain
+// to AI. Edge compute (cloud-side) runs AI inference for hybrid edge-cloud
+// architecture.
 export const actuators = [
   {
     id: 'RN-U01', nama: 'Relay Irigasi Utama', lahan: 'Lahan Utama', tipe: 'relay',
@@ -153,18 +176,13 @@ export const infrastructure = [
     status: 'online', error: null,
   },
   {
-    id: 'GW-01', nama: 'Edge Gateway LTE', lahan: 'Sistem', tipe: 'gateway',
-    sinyal: 99, baterai: 100, solarCharge: 0, lastReport: 'Baru saja',
-    status: 'online', error: null,
-  },
-  {
     id: 'EC-01', nama: 'Edge Compute (AI Inference)', lahan: 'Sistem', tipe: 'compute',
     sinyal: 100, baterai: 100, solarCharge: 0, lastReport: 'Baru saja',
     status: 'online', error: null,
   },
 ]
 
-// All devices unified — used by /perangkat
+// All devices unified - used by /perangkat
 export function getAllDevices() {
   return [...sensors, ...actuators, ...infrastructure]
 }
@@ -178,23 +196,33 @@ export function getFilteredDevices(farm) {
 }
 
 // =================== LAHAN DATA (derived from sensors) ===================
+// Warna lahan = status-driven traffic light (hijau=normal, kuning=peringatan,
+// merah=perhatian) supaya warna benar-benar mengomunikasikan urgensi, bukan
+// sekadar identitas estetik.
+function statusToColor(status) {
+  return status === 'perhatian'  ? '#EF4444'   // merah - perlu intervensi cepat
+       : status === 'peringatan' ? '#F59E0B'   // kuning - perlu perhatian
+       : status === 'normal'     ? '#22C55E'   // hijau - sehat
+       :                            '#9CA3AF'   // abu - tidak diketahui
+}
+
 const lahanMeta = [
   {
-    id: 'utama', nama: 'Lahan Utama', warna: '#EF4444', statusColor: 'merah',
+    id: 'utama', nama: 'Lahan Utama',
     luasHa: 1.8,
     komoditas: 'Tomat & cabai',
     sistemIrigasi: 'Drip 4 L/jam',
   },
   {
-    id: 'selatan', nama: 'Lahan Selatan', warna: '#22C55E', statusColor: 'hijau',
+    id: 'selatan', nama: 'Lahan Selatan',
     luasHa: 1.4,
-    komoditas: 'Kubis & sawi',
-    sistemIrigasi: 'Sprinkler',
+    komoditas: 'Bawang merah',
+    sistemIrigasi: 'Drip 4 L/jam',
   },
   {
-    id: 'barat', nama: 'Lahan Barat', warna: '#F59E0B', statusColor: 'oranye',
+    id: 'barat', nama: 'Lahan Barat',
     luasHa: 0.9,
-    komoditas: 'Kentang granola',
+    komoditas: 'Pepaya California',
     sistemIrigasi: 'Drip 4 L/jam',
   },
 ]
@@ -204,44 +232,58 @@ function avg(list, key) {
   return Math.round((list.reduce((s, x) => s + x[key], 0) / list.length) * 10) / 10
 }
 
-// Lahan = static metadata + averaged sensor metrics + derived status
+// Lahan = static metadata + averaged sensor metrics + derived status.
+// Status rollup: ambil klasifikasi tiap metrik via classifyMetric (single
+// source of truth ada di sensor-thresholds.js), lalu turunkan jadi label
+// lahan: ada metrik 'critical' → 'perhatian'; ada 'warning' → 'peringatan';
+// selain itu 'normal'.
+const ROLLUP_KEYS = ['kelembaban', 'suhu', 'airHumidity', 'ph', 'ec', 'npk']
+
+function rollupStatus(metrics) {
+  const classes = ROLLUP_KEYS.map(k => classifyMetric(metrics[k], k))
+  if (classes.includes('critical')) return 'perhatian'
+  if (classes.includes('warning'))  return 'peringatan'
+  return 'normal'
+}
+
+function buildKeterangan(metrics, status) {
+  if (status === 'normal') return 'Semua parameter dalam batas optimal.'
+  const T = SENSOR_THRESHOLDS
+  const issues = []
+  if (metrics.kelembaban < T.kelembaban.criticalMin) issues.push(`kelembaban tanah ${metrics.kelembaban}% kritis rendah`)
+  else if (metrics.kelembaban < T.kelembaban.optimalMin) issues.push(`kelembaban tanah ${metrics.kelembaban}% di bawah optimal`)
+  if (metrics.suhu > T.suhu.criticalMax) issues.push(`suhu ${metrics.suhu}°C kritis tinggi`)
+  else if (metrics.suhu > T.suhu.optimalMax) issues.push(`suhu ${metrics.suhu}°C di atas optimal`)
+  if (metrics.airHumidity > T.airHumidity.optimalMax) issues.push(`kelembaban udara ${metrics.airHumidity}% berisiko jamur`)
+  if (metrics.ph < T.ph.optimalMin || metrics.ph > T.ph.optimalMax) issues.push(`pH ${metrics.ph} di luar 6–7`)
+  if (metrics.ec < T.ec.optimalMin) issues.push(`EC ${metrics.ec} dS/m rendah`)
+  if (metrics.npk < T.npk.optimalMin) issues.push(`NPK ${metrics.npk} di bawah target`)
+  if (issues.length === 0) return 'Beberapa parameter perlu perhatian.'
+  return issues[0].charAt(0).toUpperCase() + issues[0].slice(1) + '.'
+}
+
 export const lahans = lahanMeta.map(meta => {
   const lahanSensors = sensors.filter(s => s.lahan === meta.nama)
-  const kel = avg(lahanSensors, 'kelembaban')
-  const suh = avg(lahanSensors, 'suhu')
-  const ph = avg(lahanSensors, 'ph')
-  const ec = avg(lahanSensors, 'ec')
-  const npk = Math.round(avg(lahanSensors, 'npk'))
-  const rh = Math.round(avg(lahanSensors, 'airHumidity'))
-  const sh = Math.round(avg(lahanSensors, 'sistemHealth'))
-
-  // Derived high-level status: critical → red, warning → amber, normal → green
-  let status = 'normal'
-  let keterangan = 'Semua parameter dalam batas normal.'
-  if (kel < 30 || suh > 32) {
-    status = 'perhatian'
-    keterangan = `Kelembaban tanah ${kel}% rendah, suhu ${suh}°C tinggi. Risiko stres air dalam beberapa jam.`
-  } else if (rh > 85 || kel > 70) {
-    status = 'peringatan'
-    keterangan = `Kelembaban udara ${rh}% pada suhu ${suh}°C berada di window patogen jamur.`
-  } else if (ph < 5.5 || ph > 7.5) {
-    status = 'peringatan'
-    keterangan = `pH tanah ${ph} di luar rentang aman 5.5–7.5.`
+  const metrics = {
+    kelembaban: avg(lahanSensors, 'kelembaban'),
+    suhu:       avg(lahanSensors, 'suhu'),
+    ph:         avg(lahanSensors, 'ph'),
+    ec:         avg(lahanSensors, 'ec'),
+    npk:        Math.round(avg(lahanSensors, 'npk')),
+    airHumidity: Math.round(avg(lahanSensors, 'airHumidity')),
+    sistemHealth: Math.round(avg(lahanSensors, 'sistemHealth')),
   }
+  const status = rollupStatus(metrics)
+  const keterangan = buildKeterangan(metrics, status)
 
   return {
     ...meta,
     sensorCount: lahanSensors.length,
     sensorOnline: lahanSensors.filter(s => s.status === 'online').length,
-    kelembaban: kel,
-    suhu: suh,
-    ph,
-    ec,
-    npk,
-    airHumidity: rh,
-    sistemHealth: sh,
+    ...metrics,
     status,
     keterangan,
+    warna: statusToColor(status),
   }
 })
 
@@ -281,73 +323,42 @@ export function getOverviewMetrics(farm, time) {
   }
 }
 
-// =================== ALERTS — derived from current state + system events ===================
-// We compute device-level + lahan-level alerts dynamically, then merge with
-// a small set of historical/system events for richness.
-
-function deviceAlerts() {
-  const out = []
-  let id = 100
-  for (const d of getAllDevices()) {
-    if (d.status === 'offline') {
-      out.push({
-        id: id++, tipe: 'critical',
-        judul: `Perangkat tidak melapor: ${d.nama}`,
-        pesan: d.error || 'Perangkat offline lebih dari 4 jam. Cek konektivitas atau modul daya.',
-        lahan: d.lahan === 'Sistem' ? 'Sistem' : d.lahan,
-        waktu: '4 jam lalu', sumberId: d.id, kategori: 'perangkat',
-      })
-      continue
-    }
-    // Solar panel underperforming — root cause for sensors that should be
-    // self-charging during daylight. Threshold ~5W indicates panel issue
-    // (debu, daun menutup, atau modul rusak) before battery depletes critical.
-    if (d.tipe === 'sensor' && d.solarCharge != null && d.solarCharge < 5 && d.solarCharge > 0) {
-      out.push({
-        id: id++, tipe: 'warning',
-        judul: `Panel surya tidak optimal: ${d.nama}`,
-        pesan: `Solar charge ${d.solarCharge}W (normal ≥10W). Baterai mulai turun ke ${d.baterai}%. Bersihkan panel dari daun/debu atau cek modul charger.`,
-        lahan: d.lahan, waktu: '30 menit lalu', sumberId: d.id, kategori: 'perangkat',
-      })
-      continue
-    }
-    if (d.tipe === 'sensor' && d.sinyal > 0 && d.sinyal < 50) {
-      out.push({
-        id: id++, tipe: 'warning',
-        judul: `Sinyal lemah: ${d.nama}`,
-        pesan: `Kekuatan sinyal ${d.sinyal}% di bawah ambang minimum 50%. Data mungkin tertunda — cek antena atau jarak ke gateway.`,
-        lahan: d.lahan, waktu: '1 jam lalu', sumberId: d.id, kategori: 'perangkat',
-      })
-    }
-  }
-  return out
-}
+// =================== ALERTS - derived from current state + system events ===================
+// Hanya peringatan agronomi tingkat lahan + event sistem yang relevan untuk
+// pengambilan keputusan. Kondisi telemetri perangkat (solar lemah, sinyal
+// turun, dsb.) sudah tampil langsung di /perangkat - tidak perlu duplikasi
+// di feed peringatan.
 
 function lahanAlerts() {
   const out = []
   let id = 200
+  const T = SENSOR_THRESHOLDS
   for (const l of lahans) {
-    if (l.kelembaban < 30 && l.suhu > 32) {
+    // Critical water stress: kelembaban di zona critical AND suhu di atas optimal
+    if (l.kelembaban < T.kelembaban.criticalMin && l.suhu > T.suhu.optimalMax) {
       out.push({
         id: id++, tipe: 'critical',
         judul: `Stres air dini di ${l.nama}`,
-        pesan: `Kelembaban tanah ${l.kelembaban}% turun di bawah refill point 35% sementara suhu ${l.suhu}°C dan kelembaban udara ${l.airHumidity}%. Tanaman akan mengalami stres dalam beberapa jam tanpa intervensi.`,
+        pesan: `Kelembaban tanah ${l.kelembaban}% jatuh di bawah ambang kritis ${T.kelembaban.criticalMin}% sementara suhu ${l.suhu}°C dan kelembaban udara ${l.airHumidity}%. Tanaman akan mengalami stres dalam beberapa jam tanpa intervensi.`,
         lahan: l.nama, waktu: '20 menit lalu', sumberId: l.id, kategori: 'lahan',
       })
     }
-    if (l.airHumidity > 85 && l.suhu >= 18 && l.suhu <= 28) {
+    // Fungal risk: kelembaban udara di atas optimal AND suhu di window patogen
+    if (l.airHumidity > T.airHumidity.optimalMax && l.suhu >= 18 && l.suhu <= 28) {
       out.push({
         id: id++, tipe: 'warning',
         judul: `Risiko penyakit jamur di ${l.nama}`,
-        pesan: `Kelembaban udara ${l.airHumidity}% pada suhu ${l.suhu}°C berada di window ideal patogen jamur (downy/late blight). Pertimbangkan fungisida preventif.`,
+        pesan: `Kelembaban udara ${l.airHumidity}% (di atas optimal ${T.airHumidity.optimalMax}%) pada suhu ${l.suhu}°C berada di window ideal patogen jamur (downy/late blight). Pertimbangkan fungisida preventif.`,
         lahan: l.nama, waktu: '40 menit lalu', sumberId: l.id, kategori: 'lahan',
       })
     }
-    if (l.ph < 5.5 || l.ph > 7.5) {
+    // pH ekstrem: di luar batas aman (critical bounds)
+    if (l.ph < T.ph.criticalMin || l.ph > T.ph.criticalMax) {
+      const tooAcid = l.ph < T.ph.criticalMin
       out.push({
         id: id++, tipe: 'warning',
-        judul: `pH tanah ${l.ph < 5.5 ? 'asam' : 'basa'} di ${l.nama}`,
-        pesan: `pH ${l.ph} di luar rentang aman 5.5–7.5. ${l.ph < 5.5 ? 'Disarankan pengapuran dolomit.' : 'Disarankan aplikasi belerang elemental.'}`,
+        judul: `pH tanah ${tooAcid ? 'asam' : 'basa'} di ${l.nama}`,
+        pesan: `pH ${l.ph} di luar rentang aman ${T.ph.criticalMin}–${T.ph.criticalMax}. ${tooAcid ? 'Disarankan pengapuran dolomit.' : 'Disarankan aplikasi belerang elemental.'}`,
         lahan: l.nama, waktu: '2 jam lalu', sumberId: l.id, kategori: 'lahan',
       })
     }
@@ -370,7 +381,7 @@ const systemEvents = [
   },
 ]
 
-export const alertsData = [...lahanAlerts(), ...deviceAlerts(), ...systemEvents]
+export const alertsData = [...lahanAlerts(), ...systemEvents]
   .sort((a, b) => {
     const rank = { critical: 0, warning: 1, info: 2 }
     return rank[a.tipe] - rank[b.tipe]
@@ -447,11 +458,11 @@ export const generateChartData = (farm = 'Semua Area', time = 'Hari Ini') => {
   const isHourly = time === 'Hari Ini'
   const seed = hashSeed(`${farm}-${time}`)
 
-  // Per-area baseline reflecting the scenarios above
+  // Per-area baseline mengikuti skenario sensor terbaru (post optimal-range refactor)
   const bases = {
-    'Semua Area': { kel: 51, suhu: 27.5 },
-    'Area Utama': { kel: 32, suhu: 33 },
-    'Area Selatan': { kel: 50, suhu: 27 },
+    'Semua Area': { kel: 56, suhu: 27.5 },
+    'Area Utama': { kel: 28, suhu: 33 },
+    'Area Selatan': { kel: 70, suhu: 27 },
     'Area Barat': { kel: 72, suhu: 23 },
   }
   const b = bases[farm] || bases['Semua Area']

@@ -15,7 +15,7 @@ body { font-family: 'Inter', system-ui, sans-serif; background-color: #F1F5F2; }
   .badge { @apply rounded-full px-2.5 py-0.5 text-xs font-semibold; }
 }
 
-/* Leaflet overrides — keep map looking on-brand */
+/* Leaflet overrides - keep map looking on-brand */
 .leaflet-container {
   font-family: 'Inter', system-ui, sans-serif;
   background: #1a1f1c;
@@ -60,7 +60,7 @@ body { font-family: 'Inter', system-ui, sans-serif; background-color: #F1F5F2; }
 }
 .lahan-label::before { display: none !important; }
 
-/* Sensor hover tooltip — Leaflet default has tight padding + nowrap, override fully */
+/* Sensor hover tooltip - Leaflet default has tight padding + nowrap, override fully */
 .sensor-tooltip {
   background: white !important;
   border: none !important;

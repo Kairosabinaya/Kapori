@@ -9,80 +9,90 @@ import {
 import clsx from 'clsx'
 import { notify } from '../lib/notify'
 import { useMediaQuery } from '../lib/useMediaQuery'
-import { getFilteredLahanData, farmToLahan, sensors } from '../data'
+import { getFilteredLahanData, farmToLahan, sensors, lahans } from '../data'
 import {
   classifyMetric, computeWaterStressRisk, computeDiseaseRisk,
   computeIrrigationNeed, computeFertilizationNeed
 } from '../lib/domain'
+import { SENSOR_THRESHOLDS } from '../lib/sensor-thresholds'
 import { downloadLahanCSV } from '../lib/downloads'
-import ProgressBar from '../components/ui/ProgressBar'
 
-// Anchor — Nganjuk, Jawa Timur agricultural plain
-const FARM_CENTER = [-7.5915, 111.9111]
+// Anchor: Nganjuk, Jawa Timur agricultural plain. Pusat dihitung dari
+// bounding box gabungan 3 polygon lahan baru (lat -7.5959 s/d -7.5859,
+// lng 111.9061 s/d 111.9161).
+const FARM_CENTER = [-7.5909, 111.9111]
 const PAN_RADIUS = 0.012
 
+// Polygon coords statis dari GeoJSON survei lahan (Nganjuk plot).
+// Warna fill diambil dari status terkini lahan (lihat `lahans[i].warna`
+// di src/data/index.js: hijau/kuning/merah). Format koordinat Leaflet
+// adalah [lat, lng] (di GeoJSON aslinya [lng, lat], sudah di-swap).
 const lahanPolygons = [
   {
     id: 'utama', lahan: 'Lahan Utama',
-    color: '#EF4444',
     coords: [
-      [-7.585828036297912, 111.90909196387753],
-      [-7.592086858726859, 111.90899593151477],
-      [-7.592420025428197, 111.91636641530340],
-      [-7.586898943932937, 111.91723070656230],
-      [-7.586161207848249, 111.91547811595382],
+      [-7.58589669132823,  111.91074987859417],
+      [-7.591121749058701, 111.910075162066],
+      [-7.591226249566105, 111.91245775480303],
+      [-7.590275294015697, 111.91265806127132],
+      [-7.590567895946947, 111.91340657491804],
+      [-7.591132199110817, 111.91342765981005],
+      [-7.591351650140751, 111.9138809849756],
+      [-7.591142649162649, 111.91401803677019],
+      [-7.591832352005483, 111.91488251732176],
+      [-7.58634604878776,  111.91607381368908],
+      [-7.586189296239496, 111.91560994607647],
     ],
   },
   {
     id: 'selatan', lahan: 'Lahan Selatan',
-    color: '#22C55E',
     coords: [
-      [-7.592205846863834, 111.90618698492568],
-      [-7.594204842642057, 111.90606694447229],
-      [-7.595370919219334, 111.90966815805012],
-      [-7.596727371663690, 111.90940406905452],
-      [-7.597203318874335, 111.91187690237780],
-      [-7.596108639500514, 111.91317333926526],
-      [-7.593895474856510, 111.91389358198006],
-      [-7.593419523980927, 111.91360548489382],
+      [-7.595866046471741, 111.90941098798504],
+      [-7.595907846216107, 111.90974834624797],
+      [-7.59516590014718,  111.91258426415055],
+      [-7.595301749523102, 111.91348037203892],
+      [-7.593880553926567, 111.91387044253071],
+      [-7.593817854013224, 111.91352254182061],
+      [-7.59335805436416,  111.91358579649665],
+      [-7.5923757534665555,111.90765039954732],
+      [-7.594612052247612, 111.90721815927151],
+      [-7.595364449221009, 111.90959020956365],
     ],
   },
   {
     id: 'barat', lahan: 'Lahan Barat',
-    color: '#F59E0B',
     coords: [
-      [-7.587136923045165, 111.90498658039905],
-      [-7.589254931345479, 111.90496257230842],
-      [-7.589254931345479, 111.90621099301626],
-      [-7.591230143167977, 111.90609095256292],
-      [-7.591253940845661, 111.90673917100759],
-      [-7.591182547808771, 111.90889989915394],
-      [-7.586970337680953, 111.90887589106325],
+      [-7.5861874822364825,111.90906280239409],
+      [-7.586967179516222, 111.90895869586893],
+      [-7.587035976266435, 111.90644857187704],
+      [-7.589134271885612, 111.90632133056795],
+      [-7.589111339747845, 111.90613625230156],
+      [-7.591301353333165, 111.90611311751888],
+      [-7.591266955300611, 111.9067608914525],
+      [-7.591049101027679, 111.9087736176026],
+      [-7.591117897126125, 111.90997662633526],
+      [-7.586267745256563, 111.91064753505282],
     ],
   },
 ]
 
-const lahanColor = lahanPolygons.reduce((acc, p) => {
-  acc[p.lahan] = p.color
+// Lookup warna lahan berdasarkan nama (status-driven dari data)
+const lahanColor = lahans.reduce((acc, l) => {
+  acc[l.nama] = l.warna
   return acc
 }, {})
 
+// Daftar metrik yang ditampilkan di sidebar lahan. Hanya icon + key - label,
+// unit, dan ambang diambil dari SENSOR_THRESHOLDS supaya satu sumber kebenaran.
 const metricIcons = [
-  { key: 'kelembaban', icon: Droplets, label: 'Kelembaban', unit: '%', color: 'blue', max: 100 },
-  { key: 'suhu', icon: Thermometer, label: 'Suhu', unit: '°C', color: 'amber', max: 50 },
-  { key: 'airHumidity', icon: CloudRain, label: 'Kelembaban udara', unit: '%', color: 'blue', max: 100 },
-  { key: 'ph', icon: TestTube, label: 'pH Tanah', unit: 'pH', color: 'green', max: 14 },
-  { key: 'ec', icon: Zap, label: 'Konduktivitas', unit: 'dS/m', color: 'blue', max: 3 },
-  { key: 'npk', icon: Leaf, label: 'Indeks NPK', unit: 'idx', color: 'kapori', max: 100 },
-  { key: 'sistemHealth', icon: ShieldCheck, label: 'Kesehatan sistem', unit: '%', color: 'kapori', max: 100 },
+  { key: 'kelembaban',   icon: Droplets },
+  { key: 'suhu',         icon: Thermometer },
+  { key: 'airHumidity',  icon: CloudRain },
+  { key: 'ph',           icon: TestTube },
+  { key: 'ec',           icon: Zap },
+  { key: 'npk',          icon: Leaf },
+  { key: 'sistemHealth', icon: ShieldCheck },
 ]
-
-function classBg(status) {
-  return status === 'optimal' ? 'text-green-600'
-    : status === 'warning' ? 'text-amber-600'
-    : status === 'critical' ? 'text-red-600'
-    : 'text-gray-700'
-}
 
 export default function Lahan() {
   const { filters } = useOutletContext()
@@ -182,14 +192,15 @@ export default function Lahan() {
         {lahanPolygons.map(poly => {
           const isVisible = visibleLahanNames.includes(poly.lahan)
           const isSelected = selectedLahan === poly.id
+          const polyColor = lahanColor[poly.lahan] || '#9CA3AF'
           return (
             <Polygon
               key={poly.id}
               positions={poly.coords}
               pathOptions={{
-                color: poly.color,
+                color: polyColor,
                 weight: isSelected ? 4 : 2.5,
-                fillColor: poly.color,
+                fillColor: polyColor,
                 fillOpacity: isVisible ? (isSelected ? 0.4 : 0.22) : 0.05,
                 opacity: isVisible ? 1 : 0.25,
                 dashArray: isVisible ? null : '4 4',
@@ -267,7 +278,7 @@ export default function Lahan() {
                     </div>
                   ) : (
                     <p className="text-xs text-gray-500 italic py-2">
-                      Sensor offline. Pembacaan terakhir 4 jam lalu — diperlukan pengecekan lapangan.
+                      Sensor offline. Pembacaan terakhir 4 jam lalu, diperlukan pengecekan lapangan.
                     </p>
                   )}
 
@@ -292,12 +303,21 @@ export default function Lahan() {
       <div className="absolute bottom-6 left-3 z-[400] bg-white/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-md">
         <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Status Lahan</p>
         <div className="space-y-1">
-          {lahanPolygons.map(p => (
-            <div key={p.id} className="flex items-center gap-2 text-xs">
-              <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: p.color }} />
-              <span className="text-gray-700">{p.lahan}</span>
-            </div>
-          ))}
+          {lahanPolygons.map(p => {
+            const info = lahans.find(l => l.nama === p.lahan)
+            const swatch = lahanColor[p.lahan] || '#9CA3AF'
+            const label = info?.status === 'perhatian'  ? 'Perlu perhatian'
+                         : info?.status === 'peringatan' ? 'Peringatan'
+                         : info?.status === 'normal'     ? 'Normal'
+                         :                                  '-'
+            return (
+              <div key={p.id} className="flex items-center gap-2 text-xs">
+                <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: swatch }} />
+                <span className="text-gray-700">{p.lahan}</span>
+                <span className="text-gray-400">· {label}</span>
+              </div>
+            )
+          })}
         </div>
         <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-1.5 text-[10px] text-gray-500">
           <Radio className="w-3 h-3" />
@@ -400,24 +420,32 @@ export default function Lahan() {
                 <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
                   Pembacaan rata-rata
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2.5 mb-5">
+                <div className="rounded-xl bg-gray-50 divide-y divide-gray-100 mb-5">
                   {metricIcons.map(m => {
                     const Icon = m.icon
+                    const t = SENSOR_THRESHOLDS[m.key]
+                    if (!t) return null
                     const val = lahanData[m.key]
-                    if (val == null) return null
                     const status = classifyMetric(val, m.key)
+                    const valueClass = status === 'critical' ? 'text-red-700'
+                                    : status === 'warning' ? 'text-amber-700'
+                                    : status === 'optimal' ? 'text-green-700'
+                                    : 'text-gray-500'
+                    const ideal = t.monotonic === 'higher-better' ? `≥ ${t.optimalMin}${t.unit}`
+                               : t.monotonic === 'lower-better'  ? `≤ ${t.optimalMax}${t.unit}`
+                               : `${t.optimalMin}–${t.optimalMax}${t.unit}`
                     return (
-                      <div key={m.key} className="p-3 bg-gray-50 rounded-xl">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-2">
-                            <Icon className="w-4 h-4 text-gray-400" />
-                            <span className="text-sm text-gray-600">{m.label}</span>
+                      <div key={m.key} className="flex items-center justify-between gap-2 px-3 py-2.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Icon className="w-4 h-4 text-gray-400 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm text-gray-700 truncate leading-tight">{t.label}</p>
+                            <p className="text-[11px] text-gray-400 leading-tight mt-0.5">Ideal {ideal}</p>
                           </div>
-                          <span className={clsx('text-sm font-bold', classBg(status))}>
-                            {val} {m.unit}
-                          </span>
                         </div>
-                        <ProgressBar value={val} max={m.max} color={m.color} />
+                        <span className={clsx('text-sm font-semibold tabular-nums shrink-0', valueClass)}>
+                          {val ?? '-'}{val != null ? ` ${t.unit}` : ''}
+                        </span>
                       </div>
                     )
                   })}

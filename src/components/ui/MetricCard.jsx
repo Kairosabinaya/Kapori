@@ -1,9 +1,30 @@
 import { motion } from 'framer-motion'
 import clsx from 'clsx'
+import { SENSOR_THRESHOLDS, classifyMetric } from '../../lib/sensor-thresholds'
 
-export default function MetricCard({ icon: Icon, label, value, unit, trend, trendValue, highlight, warning, onClick }) {
-  const progressPercent = typeof value === 'number' ? Math.min(value, 100) : 0
-  // highlight = critical, warning = warning, neither = optimal/default
+// Compact tile untuk satu pembacaan sensor di grid Overview.
+// Tidak pakai progress bar - status sudah dikomunikasikan via warna ikon/border/
+// nilai. Hint rentang ideal ditampilkan sebagai teks kecil saja.
+export default function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  unit,
+  trend,
+  trendValue,
+  metricKey,
+  onClick,
+}) {
+  const t = metricKey ? SENSOR_THRESHOLDS[metricKey] : null
+  const status = classifyMetric(value, metricKey)
+  const highlight = status === 'critical'
+  const warning = status === 'warning'
+
+  const idealLabel = t
+    ? t.monotonic === 'higher-better' ? `Ideal ≥ ${t.optimalMin}${t.unit}`
+    : t.monotonic === 'lower-better'  ? `Ideal ≤ ${t.optimalMax}${t.unit}`
+    : `Ideal ${t.optimalMin}–${t.optimalMax}${t.unit}`
+    : null
 
   return (
     <motion.div
@@ -16,9 +37,9 @@ export default function MetricCard({ icon: Icon, label, value, unit, trend, tren
       onClick={onClick}
     >
       <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <div className={clsx(
-            'p-2 rounded-xl',
+            'p-2 rounded-xl shrink-0',
             highlight ? 'bg-red-50' : warning ? 'bg-amber-50' : 'bg-kapori-50'
           )}>
             {Icon && <Icon className={clsx(
@@ -26,32 +47,29 @@ export default function MetricCard({ icon: Icon, label, value, unit, trend, tren
               highlight ? 'text-red-600' : warning ? 'text-amber-600' : 'text-kapori-600'
             )} />}
           </div>
-          <span className="text-sm text-gray-500 font-medium">{label}</span>
+          <span className="text-sm text-gray-500 font-medium truncate">{label}</span>
         </div>
         {trendValue && (
           <span className={clsx(
-            'text-xs font-semibold flex items-center gap-0.5',
+            'text-xs font-semibold flex items-center gap-0.5 shrink-0',
             trend === 'up' ? 'text-green-600' : 'text-red-500'
           )}>
             {trend === 'up' ? '↑' : '↓'} {trendValue}
           </span>
         )}
       </div>
-      <div className="flex items-baseline gap-1.5 mb-3">
-        <span className="text-3xl font-bold text-gray-800">{value}</span>
+      <div className="flex items-baseline gap-1.5">
+        <span className={clsx(
+          'text-3xl font-bold tabular-nums',
+          highlight ? 'text-red-600' : warning ? 'text-amber-600' : 'text-gray-800'
+        )}>
+          {value ?? '-'}
+        </span>
         <span className="text-sm text-gray-400 font-medium">{unit}</span>
       </div>
-      <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-        <motion.div
-          className={clsx(
-            'h-full rounded-full',
-            highlight ? 'bg-red-400' : warning ? 'bg-amber-400' : 'bg-kapori-500'
-          )}
-          initial={{ width: 0 }}
-          animate={{ width: `${progressPercent}%` }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-        />
-      </div>
+      {idealLabel && (
+        <p className="text-[11px] text-gray-400 mt-2">{idealLabel}</p>
+      )}
     </motion.div>
   )
 }

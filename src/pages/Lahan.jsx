@@ -166,7 +166,7 @@ export default function Lahan() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
-      className="absolute inset-0 overflow-hidden"
+      className="absolute inset-0 overflow-hidden isolate"
     >
       <MapContainer
         center={FARM_CENTER}
@@ -292,7 +292,7 @@ export default function Lahan() {
         })}
       </MapContainer>
 
-      <div className="absolute top-3 left-3 z-[400] bg-white/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-md flex items-center gap-2 pointer-events-none">
+      <div className="absolute top-3 left-3 z-[1000] bg-white/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-md flex items-center gap-2 pointer-events-none">
         <Compass className="w-4 h-4 text-kapori-600" />
         <div className="leading-tight">
           <p className="text-xs font-semibold text-gray-800">Nganjuk, Jawa Timur</p>
@@ -300,7 +300,7 @@ export default function Lahan() {
         </div>
       </div>
 
-      <div className="absolute bottom-6 left-3 z-[400] bg-white/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-md">
+      <div className="absolute bottom-6 left-3 z-[1000] bg-white/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-md">
         <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Status Lahan</p>
         <div className="space-y-1">
           {lahanPolygons.map(p => {
@@ -335,7 +335,7 @@ export default function Lahan() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setSelectedLahan(null)}
-                className="fixed inset-0 bg-black/40 z-30"
+                className="fixed inset-0 bg-black/40 z-[990]"
               />
             )}
             <motion.div
@@ -347,8 +347,8 @@ export default function Lahan() {
               className={clsx(
                 'bg-white shadow-xl overflow-y-auto',
                 isMobile
-                  ? 'fixed bottom-0 left-0 right-0 max-h-[85vh] rounded-t-2xl z-40'
-                  : 'absolute top-0 right-0 h-full w-[360px] border-l border-gray-100 z-[500]'
+                  ? 'fixed bottom-0 left-0 right-0 max-h-[85vh] rounded-t-2xl z-[1000]'
+                  : 'absolute top-0 right-0 h-full w-[360px] border-l border-gray-100 z-[1000]'
               )}
             >
               {isMobile && (
